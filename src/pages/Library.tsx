@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '@/lib/db'
 import { ARTIFACT_TEMPLATES, ARTIFACT_LIST } from '@/lib/artifacts'
@@ -460,6 +461,23 @@ function ArtifactEditor({
   onDownload: () => void
   onChange: (patch: any) => Promise<void>
 }) {
+  // Round-trip nav: when the artifact was saved from a chat message, show
+  // a "📍 From this conversation" badge that jumps back into the chat at
+  // that exact message (Feature 5).
+  const sourceConv = useLiveQuery(
+    () =>
+      artifact.conversationId
+        ? db.conversations.get(artifact.conversationId)
+        : Promise.resolve(undefined),
+    [artifact.conversationId]
+  )
+  const sourceMsg = useLiveQuery(
+    () =>
+      artifact.sourceMessageId
+        ? db.messages.get(artifact.sourceMessageId)
+        : Promise.resolve(undefined),
+    [artifact.sourceMessageId]
+  )
   const [title, setTitle] = useState(artifact.title)
   const [content, setContent] = useState(artifact.content)
   const [mode, setMode] = useState<'edit' | 'preview'>('preview')
@@ -500,6 +518,18 @@ function ArtifactEditor({
               <span>·</span>
               <span>Updated {relativeTime(artifact.updatedAt)}</span>
               {saving && <span>· saving…</span>}
+              {artifact.sourceMessageId && sourceConv && (
+                <Link
+                  to={`/chat/${artifact.conversationId}?msg=${artifact.sourceMessageId}`}
+                  className="ml-1 inline-flex items-center gap-1 rounded-full border border-accent/30 bg-accent/5 px-1.5 py-0.5 font-medium text-accent transition hover:border-accent/50 hover:bg-accent/10"
+                  title="Jump back to the message this was saved from"
+                >
+                  <span>📍</span>
+                  <span className="max-w-[120px] truncate">
+                    {sourceConv.title || 'From this conversation'}
+                  </span>
+                </Link>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-1">

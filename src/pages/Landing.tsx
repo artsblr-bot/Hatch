@@ -9,6 +9,7 @@ import { HatchWordmark } from '@/components/HatchWordmark'
 import { AmbientAurora } from '@/components/AmbientAurora'
 import { ParticleField } from '@/components/ParticleField'
 import { CountUp } from '@/components/CountUp'
+import { TodayPanel } from '@/components/TodayPanel'
 
 export function Landing() {
   const company = useLiveQuery(() => db.company.get('singleton'), [])
@@ -33,6 +34,11 @@ export function Landing() {
       </div>
 
       <div className="relative mx-auto flex min-h-full max-w-5xl flex-col px-6 pb-20 pt-16">
+        {/* Today panel — the founder's daily surface (Feature 2) */}
+        <section className="mb-10">
+          <TodayPanel />
+        </section>
+
         {/* Hero */}
         <section className="flex flex-col items-start">
           <HatchWordmark size={64} className="mb-8" />

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { nanoid } from 'nanoid'
 import {
@@ -28,6 +28,8 @@ export function ChatPage() {
   const [activeAgent, setActiveAgent] = useState<AgentRole>('mentor')
   const [isStreaming, setIsStreaming] = useState(false)
   const [streamingMsgId, setStreamingMsgId] = useState<string | null>(null)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const highlightMsgId = searchParams.get('msg')
   const [stepOverrides, setStepOverrides] = useState<Record<string, 'pending' | 'active' | 'done' | 'error'>>({})
   // Tool overrides are keyed by toolCallId (not tool name) so multiple parallel
   // calls to the same tool don't clobber each other. We keep a name→id map
@@ -91,6 +93,28 @@ export function ChatPage() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
   }, [messages.length, jitter.state.text, isStreaming])
+
+  // Deep-link support: ?msg=<id> scrolls to that message and flashes it
+  // (used by the Library "From this conversation" badge — Feature 5).
+  useEffect(() => {
+    if (!highlightMsgId || !messages.length) return
+    // Wait a tick so the message DOM nodes are mounted
+    const t = setTimeout(() => {
+      const el = document.querySelector(`[data-message-id="${highlightMsgId}"]`) as HTMLElement | null
+      if (!el) return
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      el.classList.add('ring-2', 'ring-accent/40', 'transition', 'duration-300')
+      // Pulse the highlight: clear after a few seconds
+      setTimeout(() => {
+        el.classList.remove('ring-2', 'ring-accent/40')
+        // Strip the query param so re-navigating doesn't keep flashing
+        const next = new URLSearchParams(searchParams)
+        next.delete('msg')
+        setSearchParams(next, { replace: true })
+      }, 2500)
+    }, 120)
+    return () => clearTimeout(t)
+  }, [highlightMsgId, messages.length])
 
   const ensureConversation = useCallback(
     async (agent: AgentRole): Promise<string> => {

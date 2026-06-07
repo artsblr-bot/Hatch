@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, updateCompany, type CompanyMemory } from '@/lib/db'
-import { Save, Plus, X, Brain, Sparkles, AlertCircle } from 'lucide-react'
+import { Save, Plus, X, Brain, Sparkles, AlertCircle, Calendar } from 'lucide-react'
 import { useToast } from '@/components/Toast'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
+import { CheckInsList } from '@/components/CheckInsList'
 
 const STAGES: { value: CompanyMemory['stage']; label: string; description: string }[] = [
   { value: 'idea', label: 'Idea', description: 'Concept stage, validating' },
@@ -22,7 +24,25 @@ export function Memory() {
   const [isDirty, setIsDirty] = useState(false)
   const [saving, setSaving] = useState(false)
   const [newBlocker, setNewBlocker] = useState('')
+  const [activeTab, setActiveTab] = useState<'memory' | 'checkins'>('memory')
+  const [searchParams, setSearchParams] = useSearchParams()
   const toast = useToast()
+
+  // Honor ?tab=checkins deep link from the Today panel's "Wrap up the week"
+  // entry point. We keep the param in sync when the user switches tabs
+  // manually so the URL stays a shareable view of the current page.
+  useEffect(() => {
+    const t = searchParams.get('tab')
+    if (t === 'checkins' && activeTab !== 'checkins') setActiveTab('checkins')
+  }, [searchParams])
+  useEffect(() => {
+    const current = searchParams.get('tab') || 'memory'
+    if (current !== activeTab) {
+      const next = new URLSearchParams(searchParams)
+      next.set('tab', activeTab)
+      setSearchParams(next, { replace: true })
+    }
+  }, [activeTab])
 
   // Initial load: copy company into draft once
   useEffect(() => {
@@ -116,24 +136,26 @@ export function Memory() {
   return (
     <div className="flex-1 overflow-y-auto">
       <div className="mx-auto max-w-3xl px-6 py-10">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-accent">
-              <Brain className="h-3 w-3" />
-              <span>Company memory</span>
+        <MemoryTabs active={activeTab} onChange={setActiveTab}>
+          <MemoryTab id="memory" label="Memory" icon={Brain} active={activeTab} onChange={setActiveTab}>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-accent">
+                  <Brain className="h-3 w-3" />
+                  <span>Company memory</span>
+                </div>
+                <h1 className="mt-2 font-serif text-3xl font-medium tracking-tight">What Hatch knows about your business</h1>
+                <p className="mt-2 text-fg-muted">Edit anything. Hatch uses this in every conversation.</p>
+              </div>
+              <button
+                onClick={save}
+                disabled={saving}
+                className="inline-flex items-center gap-1.5 rounded-2xl bg-accent px-4 py-2 text-sm font-medium text-accent-fg transition hover:shadow-glow focus-ring disabled:opacity-50"
+              >
+                <Save className="h-3.5 w-3.5" />
+                {saving ? 'Saving…' : 'Save'}
+              </button>
             </div>
-            <h1 className="mt-2 font-serif text-3xl font-medium tracking-tight">What Hatch knows about your business</h1>
-            <p className="mt-2 text-fg-muted">Edit anything. Hatch uses this in every conversation.</p>
-          </div>
-          <button
-            onClick={save}
-            disabled={saving}
-            className="inline-flex items-center gap-1.5 rounded-2xl bg-accent px-4 py-2 text-sm font-medium text-accent-fg transition hover:shadow-glow focus-ring disabled:opacity-50"
-          >
-            <Save className="h-3.5 w-3.5" />
-            {saving ? 'Saving…' : 'Save'}
-          </button>
-        </div>
 
         {/* Pending extractions */}
         <AnimatePresence>
@@ -310,7 +332,13 @@ export function Memory() {
               </div>
             </Field>
           )}
-        </div>
+          </div>
+        </MemoryTab>
+
+        <MemoryTab id="checkins" label="Weekly check-ins" icon={Calendar} active={activeTab} onChange={setActiveTab}>
+          <CheckInsList />
+        </MemoryTab>
+        </MemoryTabs>
       </div>
     </div>
   )
@@ -324,4 +352,66 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
       <div className="mt-2">{children}</div>
     </div>
   )
+}
+
+// ---------------------------------------------------------------------------
+// Tabs (controlled, simple)
+// ---------------------------------------------------------------------------
+
+function MemoryTabs({
+  active,
+  onChange,
+  children,
+}: {
+  active: 'memory' | 'checkins'
+  onChange: (id: 'memory' | 'checkins') => void
+  children: React.ReactNode
+}) {
+  const tabs = [
+    { id: 'memory' as const, label: 'Memory', icon: Brain },
+    { id: 'checkins' as const, label: 'Weekly check-ins', icon: Calendar },
+  ]
+  return (
+    <div>
+      <div className="mb-6 flex items-center gap-1 border-b border-border-subtle">
+        {tabs.map((t) => {
+          const Icon = t.icon
+          const isActive = active === t.id
+          return (
+            <button
+              key={t.id}
+              onClick={() => onChange(t.id)}
+              className={cn(
+                'inline-flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition',
+                isActive
+                  ? 'border-accent text-fg'
+                  : 'border-transparent text-fg-muted hover:text-fg'
+              )}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {t.label}
+            </button>
+          )
+        })}
+      </div>
+      {children}
+    </div>
+  )
+}
+
+function MemoryTab({
+  id,
+  active,
+  onChange: _onChange,
+  children,
+}: {
+  id: 'memory' | 'checkins'
+  label: string
+  icon: any
+  active: 'memory' | 'checkins'
+  onChange: (id: 'memory' | 'checkins') => void
+  children: React.ReactNode
+}) {
+  if (active !== id) return null
+  return <div>{children}</div>
 }
