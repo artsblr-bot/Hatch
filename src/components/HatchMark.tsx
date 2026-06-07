@@ -1,0 +1,42 @@
+import { cn } from '@/lib/utils'
+
+export type HatchMarkVariant = 'orange' | 'black'
+
+interface Props {
+  variant?: HatchMarkVariant
+  size?: number
+  className?: string
+  title?: string
+}
+
+/**
+ * The Hatch logomark — a square crossbar H on a 100×100 tile.
+ *
+ * - variant="orange" (default): orange tile + black H. For dark contexts.
+ * - variant="black": black tile + orange H. For light contexts.
+ *
+ * Stems are 15px wide (~15% of tile), crossbar is 15×15px and centered.
+ * This matches the brand spec (11/72 ≈ 15.3%).
+ */
+export function HatchMark({ variant = 'orange', size = 32, className, title }: Props) {
+  const tileColor = variant === 'orange' ? '#FF6B1A' : '#0E0E0E'
+  const markColor = variant === 'orange' ? '#0E0E0E' : '#FF6B1A'
+
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 100 100"
+      width={size}
+      height={size}
+      role="img"
+      aria-label={title || 'Hatch'}
+      className={cn('flex-shrink-0', className)}
+    >
+      {title && <title>{title}</title>}
+      <rect width="100" height="100" rx="24" fill={tileColor} />
+      <rect x="22" y="22" width="15" height="56" fill={markColor} />
+      <rect x="42.5" y="42.5" width="15" height="15" fill={markColor} />
+      <rect x="63" y="22" width="15" height="56" fill={markColor} />
+    </svg>
+  )
+}

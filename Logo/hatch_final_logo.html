@@ -1,0 +1,185 @@
+
+<style>
+  body { margin: 0; }
+  .logo-sheet { padding: 32px 0 24px; font-family: -apple-system, 'Inter', sans-serif; }
+  .section-label { font-size: 10px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-text-tertiary); margin-bottom: 16px; padding: 0 4px; }
+  .row { display: flex; align-items: center; gap: 0; margin-bottom: 8px; }
+  .swatch { display: flex; align-items: center; justify-content: center; }
+  .divider { height: 1px; background: var(--color-border-tertiary); margin: 28px 0; }
+  .color-row { display: flex; gap: 16px; margin-bottom: 8px; }
+  .color-chip { display: flex; flex-direction: column; gap: 6px; }
+  .chip-block { width: 72px; height: 40px; border-radius: 8px; }
+  .chip-label { font-size: 11px; color: var(--color-text-secondary); font-family: monospace; }
+  .variants-row { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
+  .variant-tile { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .tile-bg { border-radius: 14px; display: flex; align-items: center; justify-content: center; }
+  .tile-label { font-size: 10px; color: var(--color-text-tertiary); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 500; }
+  .spec-row { display: flex; gap: 32px; flex-wrap: wrap; }
+  .spec-item { display: flex; flex-direction: column; gap: 3px; }
+  .spec-key { font-size: 10px; color: var(--color-text-tertiary); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; }
+  .spec-val { font-size: 13px; color: var(--color-text-primary); font-family: monospace; }
+</style>
+
+<div class="logo-sheet">
+
+  <div class="section-label">Primary mark — dark background</div>
+  <div style="background:#0e0e0e; border-radius:20px; padding:48px 40px; display:flex; align-items:center; gap:24px; margin-bottom:8px;">
+    <svg width="72" height="72" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect width="72" height="72" rx="18" fill="#FF6B1A"/>
+      <rect x="16" y="16" width="11" height="40" fill="#0e0e0e"/>
+      <rect x="30.5" y="30.5" width="11" height="11" fill="#0e0e0e"/>
+      <rect x="45" y="16" width="11" height="40" fill="#0e0e0e"/>
+    </svg>
+    <svg width="160" height="34" viewBox="0 0 320 68" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <text x="0" y="52" font-family="-apple-system,'Inter',sans-serif" font-weight="700" font-size="56" fill="#FFFFFF" letter-spacing="-2">hatch</text>
+    </svg>
+  </div>
+
+  <div class="section-label" style="margin-top:24px;">Primary mark — light background</div>
+  <div style="background:#F5F5F5; border-radius:20px; padding:48px 40px; display:flex; align-items:center; gap:24px; margin-bottom:8px;">
+    <svg width="72" height="72" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect width="72" height="72" rx="18" fill="#0e0e0e"/>
+      <rect x="16" y="16" width="11" height="40" fill="#FF6B1A"/>
+      <rect x="30.5" y="30.5" width="11" height="11" fill="#FF6B1A"/>
+      <rect x="45" y="16" width="11" height="40" fill="#FF6B1A"/>
+    </svg>
+    <svg width="160" height="34" viewBox="0 0 320 68" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <text x="0" y="52" font-family="-apple-system,'Inter',sans-serif" font-weight="700" font-size="56" fill="#0e0e0e" letter-spacing="-2">hatch</text>
+    </svg>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="section-label">Icon variants at scale</div>
+  <div class="variants-row">
+
+    <div class="variant-tile">
+      <div class="tile-bg" style="background:#0e0e0e; width:96px; height:96px;">
+        <svg width="64" height="64" viewBox="0 0 72 72" fill="none">
+          <rect width="72" height="72" rx="18" fill="#FF6B1A"/>
+          <rect x="16" y="16" width="11" height="40" fill="#0e0e0e"/>
+          <rect x="30.5" y="30.5" width="11" height="11" fill="#0e0e0e"/>
+          <rect x="45" y="16" width="11" height="40" fill="#0e0e0e"/>
+        </svg>
+      </div>
+      <span class="tile-label">App icon</span>
+    </div>
+
+    <div class="variant-tile">
+      <div class="tile-bg" style="background:#f5f5f5; width:96px; height:96px;">
+        <svg width="64" height="64" viewBox="0 0 72 72" fill="none">
+          <rect width="72" height="72" rx="18" fill="#0e0e0e"/>
+          <rect x="16" y="16" width="11" height="40" fill="#FF6B1A"/>
+          <rect x="30.5" y="30.5" width="11" height="11" fill="#FF6B1A"/>
+          <rect x="45" y="16" width="11" height="40" fill="#FF6B1A"/>
+        </svg>
+      </div>
+      <span class="tile-label">Light mode</span>
+    </div>
+
+    <div class="variant-tile">
+      <div class="tile-bg" style="background:#0e0e0e; width:64px; height:64px; border-radius:10px;">
+        <svg width="42" height="42" viewBox="0 0 72 72" fill="none">
+          <rect width="72" height="72" rx="18" fill="#FF6B1A"/>
+          <rect x="16" y="16" width="11" height="40" fill="#0e0e0e"/>
+          <rect x="30.5" y="30.5" width="11" height="11" fill="#0e0e0e"/>
+          <rect x="45" y="16" width="11" height="40" fill="#0e0e0e"/>
+        </svg>
+      </div>
+      <span class="tile-label">48px</span>
+    </div>
+
+    <div class="variant-tile">
+      <div class="tile-bg" style="background:#0e0e0e; width:44px; height:44px; border-radius:8px;">
+        <svg width="30" height="30" viewBox="0 0 72 72" fill="none">
+          <rect width="72" height="72" rx="18" fill="#FF6B1A"/>
+          <rect x="16" y="16" width="11" height="40" fill="#0e0e0e"/>
+          <rect x="30.5" y="30.5" width="11" height="11" fill="#0e0e0e"/>
+          <rect x="45" y="16" width="11" height="40" fill="#0e0e0e"/>
+        </svg>
+      </div>
+      <span class="tile-label">32px</span>
+    </div>
+
+    <div class="variant-tile">
+      <div class="tile-bg" style="background:#0e0e0e; width:32px; height:32px; border-radius:6px;">
+        <svg width="22" height="22" viewBox="0 0 72 72" fill="none">
+          <rect width="72" height="72" rx="18" fill="#FF6B1A"/>
+          <rect x="16" y="16" width="11" height="40" fill="#0e0e0e"/>
+          <rect x="30.5" y="30.5" width="11" height="11" fill="#0e0e0e"/>
+          <rect x="45" y="16" width="11" height="40" fill="#0e0e0e"/>
+        </svg>
+      </div>
+      <span class="tile-label">Favicon</span>
+    </div>
+
+    <div class="variant-tile">
+      <div class="tile-bg" style="background:#FF6B1A; width:96px; height:96px;">
+        <svg width="52" height="52" viewBox="0 0 72 72" fill="none">
+          <rect x="8" y="8" width="11" height="40" fill="#0e0e0e"/>
+          <rect x="22.5" y="22.5" width="11" height="11" fill="#0e0e0e"/>
+          <rect x="37" y="8" width="11" height="40" fill="#0e0e0e"/>
+        </svg>
+      </div>
+      <span class="tile-label">On brand</span>
+    </div>
+
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="section-label">Colour palette</div>
+  <div class="color-row">
+    <div class="color-chip">
+      <div class="chip-block" style="background:#FF6B1A;"></div>
+      <span class="chip-label">#FF6B1A</span>
+      <span style="font-size:10px; color:var(--color-text-tertiary);">Hatch orange</span>
+    </div>
+    <div class="color-chip">
+      <div class="chip-block" style="background:#0E0E0E; border: 1px solid rgba(255,255,255,0.08);"></div>
+      <span class="chip-label">#0E0E0E</span>
+      <span style="font-size:10px; color:var(--color-text-tertiary);">Hatch black</span>
+    </div>
+    <div class="color-chip">
+      <div class="chip-block" style="background:#FFFFFF; border:1px solid rgba(0,0,0,0.1);"></div>
+      <span class="chip-label">#FFFFFF</span>
+      <span style="font-size:10px; color:var(--color-text-tertiary);">Wordmark white</span>
+    </div>
+    <div class="color-chip">
+      <div class="chip-block" style="background:#E85A0A;"></div>
+      <span class="chip-label">#E85A0A</span>
+      <span style="font-size:10px; color:var(--color-text-tertiary);">Orange pressed</span>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="section-label">Spec</div>
+  <div class="spec-row">
+    <div class="spec-item">
+      <span class="spec-key">Mark shape</span>
+      <span class="spec-val">72×72 · rx 18</span>
+    </div>
+    <div class="spec-item">
+      <span class="spec-key">H stem width</span>
+      <span class="spec-val">11px / 15.3%</span>
+    </div>
+    <div class="spec-item">
+      <span class="spec-key">Crossbar</span>
+      <span class="spec-val">11×11 · centred</span>
+    </div>
+    <div class="spec-item">
+      <span class="spec-key">Inner margin</span>
+      <span class="spec-val">16px all sides</span>
+    </div>
+    <div class="spec-item">
+      <span class="spec-key">Wordmark</span>
+      <span class="spec-val">Inter 700 / -2 tracking</span>
+    </div>
+    <div class="spec-item">
+      <span class="spec-key">Min size</span>
+      <span class="spec-val">16px (favicon)</span>
+    </div>
+  </div>
+
+</div>
