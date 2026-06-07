@@ -465,19 +465,12 @@ function ArtifactEditor({
   // a "📍 From this conversation" badge that jumps back into the chat at
   // that exact message (Feature 5).
   const sourceConv = useLiveQuery(
-    () =>
-      artifact.conversationId
-        ? db.conversations.get(artifact.conversationId)
-        : Promise.resolve(undefined),
+    async () => {
+      if (!artifact.conversationId) return undefined
+      return await db.conversations.get(artifact.conversationId)
+    },
     [artifact.conversationId]
-  )
-  const sourceMsg = useLiveQuery(
-    () =>
-      artifact.sourceMessageId
-        ? db.messages.get(artifact.sourceMessageId)
-        : Promise.resolve(undefined),
-    [artifact.sourceMessageId]
-  )
+  ) as import('@/lib/db').Conversation | undefined
   const [title, setTitle] = useState(artifact.title)
   const [content, setContent] = useState(artifact.content)
   const [mode, setMode] = useState<'edit' | 'preview'>('preview')
