@@ -100,6 +100,12 @@ export function Library() {
         { name: 'Type filter: "teardown"', query: 'competitor teardown', types: ['teardown'] },
         { name: 'Pinned only', query: 'strategy', pinnedOnly: true },
         { name: 'No match', query: 'qzxwcnvbnm' },
+        // NEW: broad-recall probes (stem + prefix + body-content)
+        { name: 'Stem fallback: "pric" → pricing/prices', query: 'pric' },
+        { name: 'Prefix fallback: "strate" → strategy/strategies', query: 'strate' },
+        { name: 'Body-only: "MRR" (in investor doc body, not title)', query: 'MRR' },
+        { name: 'Body-only: "payback" (only in pricing doc body)', query: 'payback' },
+        { name: 'Body-only: "freemium" (pricing + pitch docs)', query: 'freemium' },
       ]
       const results: typeof diag = []
       for (const p of probes) {
@@ -394,6 +400,14 @@ export function Library() {
                                   score {h.score.toFixed(2)}
                                 </div>
                                 {h.pinned && <Pin className="h-2.5 w-2.5 fill-current text-accent" />}
+                                {h.broadRecall && (
+                                  <span
+                                    className="rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-300"
+                                    title="Matched via broad-recall (stem/prefix fallback)"
+                                  >
+                                    broad
+                                  </span>
+                                )}
                               </div>
                               {h.matchedFields?.length > 0 && (
                                 <div className="mt-1 flex flex-wrap gap-1">
@@ -403,6 +417,25 @@ export function Library() {
                                       className="rounded-full bg-bg-muted px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-fg-muted"
                                     >
                                       {f}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                              {h.matchDetails && h.matchDetails.length > 0 && (
+                                <div className="mt-1 flex flex-wrap items-center gap-1 text-[9px] text-fg-subtle">
+                                  <span>matched:</span>
+                                  {h.matchDetails.map((m: any, k: number) => (
+                                    <span
+                                      key={k}
+                                      className={cn(
+                                        'rounded px-1 py-0.5 font-mono',
+                                        m.exact
+                                          ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                                          : 'bg-amber-500/10 text-amber-700 dark:text-amber-300'
+                                      )}
+                                      title={m.exact ? 'exact match' : 'stem/prefix fallback'}
+                                    >
+                                      {m.term}
                                     </span>
                                   ))}
                                 </div>

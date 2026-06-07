@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Save, X, Check, AlertCircle, BookOpen, Brain, ChevronDown, Database, Pin, ArrowRight, Globe, Link2, Clock, ExternalLink, AlertTriangle, FileText, Bookmark } from 'lucide-react'
+import { Save, X, Check, AlertCircle, BookOpen, Brain, ChevronDown, Database, Pin, ArrowRight, Globe, Link2, Clock, ExternalLink, AlertTriangle, FileText, Bookmark, Loader2, RotateCw } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { nanoid } from 'nanoid'
@@ -39,9 +39,17 @@ interface Props {
   verbList: string[]
   activeAgent: AgentRole
   endRef: React.RefObject<HTMLDivElement>
+  /**
+   * Re-run a tool call the model wrote in prose (i.e. the missed-call row).
+   * Fired when the user clicks the "Run this search now" button on a missed
+   * call. Receives the row's pseudoId, the tool name, the args the model
+   * tried to send, and the assistant message id (so the rerun can be
+   * persisted to IndexedDB).
+   */
+  onRerunMissedToolCall?: (pseudoId: string, name: string, args: any, assistantMsgId?: string) => void
 }
 
-export function MessageList({ messages, streamingMsgId, streamingText, streamingReasoning, streaming, stepOverrides, toolOverrides, verbList, activeAgent, endRef }: Props) {
+export function MessageList({ messages, streamingMsgId, streamingText, streamingReasoning, streaming, stepOverrides, toolOverrides, verbList, activeAgent, endRef, onRerunMissedToolCall }: Props) {
   // Pre-resolve which messages already produced an artifact, so the action
   // pill can show a "View artifact" badge without each card re-querying.
   // Scoped to the current conversation via the message set — if a message
@@ -85,7 +93,12 @@ export function MessageList({ messages, streamingMsgId, streamingText, streaming
                 verbList={verbList}
               />
             ) : (
-              <StoredMessage key={m.id} message={m} verbList={verbList} />
+              <StoredMessage
+                key={m.id}
+                message={m}
+                verbList={verbList}
+                onRerunMissedToolCall={onRerunMissedToolCall}
+              />
             )
           return (
             <div key={m.id} className="group/message relative" data-message-id={m.id}>
@@ -171,7 +184,14 @@ function EmptyState({ activeAgent }: { verbList: string[]; activeAgent: AgentRol
   )
 }
 
-function StoredMessage({ message }: { message: Message; verbList: string[] }) {
+function StoredMessage({
+  message,
+  onRerunMissedToolCall,
+}: {
+  message: Message
+  verbList: string[]
+  onRerunMissedToolCall?: (pseudoId: string, name: string, args: any, assistantMsgId?: string) => void
+}) {
   if (message.role === 'user') {
     return <UserBubble content={message.content} />
   }
@@ -181,6 +201,7 @@ function StoredMessage({ message }: { message: Message; verbList: string[] }) {
         message={message}
         content={message.content}
         artifacts={parseArtifacts(message.content)}
+        onRerunMissedToolCall={onRerunMissedToolCall}
       />
     )
   }
@@ -206,10 +227,12 @@ function AssistantBubble({
   message,
   content,
   artifacts,
+  onRerunMissedToolCall,
 }: {
   message: Message
   content: string
   artifacts: ReturnType<typeof parseArtifacts>
+  onRerunMissedToolCall?: (pseudoId: string, name: string, args: any, assistantMsgId?: string) => void
 }) {
   const htmlBlocks = parseHtmlBlocks(content)
   const displayContent = stripHtmlBlocks(stripArtifacts(content))
@@ -236,7 +259,7 @@ function AssistantBubble({
       {message.toolCalls && message.toolCalls.length > 0 && (
         <div className="flex flex-col gap-1.5">
           {message.toolCalls.map((tc, i) => (
-            <ToolCallRow key={i} call={tc} />
+            <ToolCallRow key={i} call={tc} onRerun={onRerunMissedToolCall} assistantMsgId={message.id} />
           ))}
         </div>
       )}
@@ -492,11 +515,31 @@ function StepRow({ step }: { step: { id: string; label: string; status: 'pending
   )
 }
 
-function ToolCallRow({ call }: { call: { name: string; args?: any; result?: any; status: 'pending' | 'ok' | 'error' } }) {
+function ToolCallRow({
+  call,
+  onRerun,
+  assistantMsgId,
+}: {
+  call: { toolCallId?: string; name: string; args?: any; result?: any; status: 'pending' | 'ok' | 'error' }
+  /**
+   * Fired when the user clicks the "Run this search now" button on a missed
+   * tool call row. The parent re-runs the tool against the real providers
+   * and drops the result back into the row's state.
+   */
+  onRerun?: (pseudoId: string, name: string, args: any, assistantMsgId?: string) => void
+  /** Assistant message id — needed so the rerun can persist to IndexedDB. */
+  assistantMsgId?: string
+}) {
   // "Missed" tool calls: the model wrote the call in prose instead of invoking
   // the tool via the API. We still want the founder to see what the model
-  // tried to do, so we render a dedicated warning row.
+  // tried to do, so we render a dedicated warning row with a one-click
+  // "Run this search now" button to actually invoke the tool.
   const isMissed = !!call.result?.missed
+  // A missed call is "rerunning" when the row is in pending state (the rerun
+  // flips the row from error→pending→ok/error). The `result` will be cleared
+  // of `missed: true` once the rerun completes, at which point this flips
+  // back to the regular Claude-style result renderer.
+  const isRerunning = isMissed && call.status === 'pending'
   const [open, setOpen] = useState(
     // Auto-open on success for tools whose results are useful to skim, AND on
     // missed calls (the founder needs to see what the model attempted).
@@ -646,14 +689,59 @@ function ToolCallRow({ call }: { call: { name: string; args?: any; result?: any;
                 The model tried to call <code className="rounded bg-amber-500/15 px-1 py-0.5 font-mono text-[10.5px]">{call.name}</code> but wrote it in prose instead of invoking the tool.
               </div>
               <div className="mt-1 text-amber-800/80 dark:text-amber-200/80">
-                This usually means the model doesn't support function calling. Try a model that does, or rephrase your question.
+                {isRerunning
+                  ? 'Running the tool for you now…'
+                  : "This usually means the model doesn't support function calling. You can run the tool yourself, or switch to a model that does."}
               </div>
-              {call.args && Object.keys(call.args).length > 0 && (
+              {call.args && Object.keys(call.args).length > 0 && !isRerunning && (
                 <div className="mt-2">
                   <div className="text-[10px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-300">Arguments the model tried to send</div>
                   <pre className="mt-1 max-h-32 overflow-auto rounded bg-amber-500/10 p-2 font-mono text-[10.5px] text-amber-900 dark:text-amber-100">
 {JSON.stringify(call.args, null, 2)}
                   </pre>
+                </div>
+              )}
+              {/* Rerun action — turn the missed call into a real tool call.
+                  Once it completes, the row flips to status='ok' with no
+                  `missed: true` flag, so the body re-renders as the regular
+                  Claude-style result panel (WebSearchResults / FetchUrlResults
+                  / ArtifactSearchResults) instead of this amber box. */}
+              {onRerun && call.toolCallId && (
+                <div className="mt-3 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onRerun(call.toolCallId!, call.name, call.args, assistantMsgId)
+                    }}
+                    disabled={isRerunning}
+                    className={cn(
+                      'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px] font-semibold transition',
+                      'bg-amber-500/20 text-amber-900 hover:bg-amber-500/30 dark:text-amber-100',
+                      isRerunning && 'cursor-not-allowed opacity-60'
+                    )}
+                    title="Actually run this tool call now (uses your configured search provider)"
+                  >
+                    {isRerunning ? (
+                      <>
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Running…
+                      </>
+                    ) : (
+                      <>
+                        <RotateCw className="h-3 w-3" />
+                        {call.name === 'web_search' && 'Run this search now'}
+                        {call.name === 'fetch_url' && 'Read this page now'}
+                        {call.name === 'search_artifacts' && 'Search my library now'}
+                        {call.name === 'fetch_artifact' && 'Read this artifact now'}
+                      </>
+                    )}
+                  </button>
+                  {!isRerunning && (
+                    <span className="text-[10px] text-amber-700/70 dark:text-amber-300/70">
+                      Uses your configured search provider
+                    </span>
+                  )}
                 </div>
               )}
             </div>
@@ -687,66 +775,190 @@ function ToolCallRow({ call }: { call: { name: string; args?: any; result?: any;
 
 function WebSearchResults({ call }: { call: { args?: any; result?: any; status: string } }) {
   if (call.status === 'pending') {
-    return (
-      <div className="border-t border-border-subtle bg-bg-subtle/50 p-3 text-[11px] text-fg-muted">
-        <div className="flex items-center gap-2">
-          <Globe className="h-3 w-3 animate-pulse text-sky-500" />
-          <span>
-            Searching the web for <span className="text-fg">"{call.args?.query || '…'}"</span>
-            {call.args?.topic === 'news' && <span className="ml-1 text-fg-subtle">(news)</span>}
-            {call.args?.recencyDays ? <span className="ml-1 text-fg-subtle">(last {call.args.recencyDays}d)</span> : null}
-            …
-          </span>
-        </div>
-      </div>
-    )
+    return <WebSearchPending call={call} />
   }
   if (call.status === 'error') {
     return (
-      <div className="border-t border-border-subtle bg-bg-subtle/50 p-3 text-[11px] text-danger">
-        {call.result?.error || 'Web search failed.'}
+      <div className="border-t border-sky-500/20 bg-sky-500/5 p-3 text-[11.5px] text-danger">
+        <div className="flex items-center gap-2">
+          <Globe className="h-3 w-3" />
+          <span>{call.result?.error || 'Web search failed.'}</span>
+        </div>
       </div>
     )
   }
   const results: any[] = call.result?.fullResults || call.result?.results || []
   if (results.length === 0) {
     return (
-      <div className="border-t border-border-subtle bg-bg-subtle/50 p-3 text-[11px] text-fg-muted">
-        No results for "{call.args?.query}".
+      <div className="border-t border-sky-500/20 bg-sky-500/5 p-3 text-[11.5px] text-fg-muted">
+        <div className="flex items-center gap-2">
+          <Globe className="h-3 w-3 text-sky-500" />
+          <span>No results for <span className="text-fg">"{call.args?.query}"</span>.</span>
+        </div>
       </div>
     )
   }
   return (
-    <div className="border-t border-border-subtle bg-bg-subtle/40">
-      <div className="flex items-center gap-2 border-b border-border-subtle px-3 py-1.5 text-[10px] uppercase tracking-wider text-fg-subtle">
-        <Globe className="h-3 w-3 text-sky-500" />
-        <span>Web results</span>
-        <span className="ml-auto text-fg-muted normal-case tracking-normal">
-          {results.length} via {call.result?.source || 'search'}
-        </span>
-      </div>
-      <ul className="divide-y divide-border-subtle">
-        {results.map((r: any, i: number) => (
-          <li key={r.url || i} className="px-3 py-2 text-[11.5px]">
-            <div className="flex items-baseline gap-2">
-              <div className="flex-1 min-w-0 truncate font-medium text-fg">
-                {r.url ? (
-                  <a href={r.url} target="_blank" rel="noopener noreferrer" className="hover:underline">
-                    {r.title || r.url}
-                  </a>
-                ) : (
-                  r.title || '(untitled)'
-                )}
-              </div>
-              {r.publishedDate && (
-                <span className="flex-shrink-0 text-[10px] text-fg-subtle">{r.publishedDate}</span>
-              )}
+    <WebSearchSources
+      query={call.args?.query}
+      results={results}
+      source={call.result?.source}
+      topic={call.args?.topic}
+      recencyDays={call.args?.recencyDays}
+      tookMs={call.result?.tookMs}
+    />
+  )
+}
+
+/**
+ * Claude-style web search results. The header shows the query + a
+ * compact meta line ("N sources · tavily · 245ms"). Each source is a
+ * card with a circular hostname-letter badge, a clickable title, the
+ * hostname + favicon-style metadata, a snippet, and a cite number the
+ * user can reference in conversation.
+ */
+function WebSearchSources({
+  query,
+  results,
+  source,
+  topic,
+  recencyDays,
+  tookMs,
+}: {
+  query?: string
+  results: any[]
+  source?: string
+  topic?: string
+  recencyDays?: number
+  tookMs?: number
+}) {
+  return (
+    <div className="border-t border-sky-500/20 bg-sky-500/[0.03]">
+      {/* Header — like Claude's "Web search" header */}
+      <div className="flex items-center gap-2.5 border-b border-sky-500/15 px-3 py-2">
+        <div className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md bg-sky-500/10 text-sky-500">
+          <Globe className="h-3.5 w-3.5" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-[11px] font-semibold text-fg">Web search</div>
+          {query && (
+            <div className="truncate text-[10.5px] text-fg-muted">
+              {query}
+              {topic === 'news' && <span className="ml-1.5 text-fg-subtle">· news</span>}
+              {recencyDays ? <span className="ml-1.5 text-fg-subtle">· last {recencyDays}d</span> : null}
             </div>
-            {r.url && <div className="truncate text-[10px] text-fg-subtle">{r.url}</div>}
-            {r.snippet && <div className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-fg-muted">{r.snippet}</div>}
-          </li>
+          )}
+        </div>
+        <div className="flex items-center gap-1.5 text-[10px] text-fg-subtle">
+          <span className="rounded-full bg-sky-500/10 px-1.5 py-0.5 font-semibold text-sky-700 dark:text-sky-300">
+            {results.length} {results.length === 1 ? 'source' : 'sources'}
+          </span>
+          {source && source !== 'none' && (
+            <span className="rounded-full bg-bg-muted px-1.5 py-0.5 normal-case">{source}</span>
+          )}
+          {typeof tookMs === 'number' && (
+            <span className="hidden items-center gap-0.5 sm:flex">
+              <Clock className="h-2.5 w-2.5" />
+              {tookMs}ms
+            </span>
+          )}
+        </div>
+      </div>
+      {/* Source cards */}
+      <ul className="divide-y divide-border-subtle/60">
+        {results.map((r: any, i: number) => (
+          <WebSearchSourceCard key={r.url || i} index={i + 1} result={r} />
         ))}
       </ul>
+    </div>
+  )
+}
+
+function WebSearchSourceCard({ index, result }: { index: number; result: any }) {
+  const url = result.url || ''
+  let host = ''
+  try {
+    if (url) host = new URL(url).hostname.replace(/^www\./, '')
+  } catch {
+    /* malformed URL — leave host empty */
+  }
+  const initial = (host || result.title || '?').charAt(0).toUpperCase()
+  return (
+    <li className="group px-3 py-2.5 text-[11.5px] transition hover:bg-sky-500/5">
+      <div className="flex items-start gap-2.5">
+        <div className="flex flex-col items-center gap-1 pt-0.5">
+          <span
+            className="grid h-7 w-7 place-items-center rounded-md bg-gradient-to-br from-sky-500/15 to-sky-500/5 font-mono text-[12px] font-semibold text-sky-700 dark:text-sky-300"
+            title={host || url || result.title}
+          >
+            {initial}
+          </span>
+          <span className="text-[9px] font-medium text-fg-subtle">#{index}</span>
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-baseline gap-2">
+            <a
+              href={url || '#'}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="min-w-0 flex-1 truncate font-medium text-fg hover:text-sky-700 hover:underline dark:hover:text-sky-300"
+            >
+              {result.title || host || url || '(untitled)'}
+            </a>
+            {result.publishedDate && (
+              <span className="flex-shrink-0 rounded bg-bg-muted px-1.5 py-0.5 text-[9.5px] tabular-nums text-fg-subtle">
+                {result.publishedDate}
+              </span>
+            )}
+          </div>
+          {host && (
+            <div className="mt-0.5 flex items-center gap-1.5 text-[10px] text-fg-subtle">
+              <span className="font-mono">{host}</span>
+              {url && url !== `https://${host}` && url !== `http://${host}` && (
+                <span className="truncate text-fg-subtle/70">· {url}</span>
+              )}
+            </div>
+          )}
+          {result.snippet && (
+            <p className="mt-1.5 line-clamp-2 text-[11.5px] leading-relaxed text-fg-muted">
+              {result.snippet}
+            </p>
+          )}
+        </div>
+        <a
+          href={url || '#'}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-0.5 grid h-6 w-6 flex-shrink-0 place-items-center rounded-md text-fg-subtle opacity-0 transition hover:bg-bg-muted hover:text-fg group-hover:opacity-100"
+          title="Open in new tab"
+        >
+          <ExternalLink className="h-3 w-3" />
+        </a>
+      </div>
+    </li>
+  )
+}
+
+function WebSearchPending({ call }: { call: { args?: any; status: string } }) {
+  return (
+    <div className="border-t border-sky-500/20 bg-sky-500/[0.03] px-3 py-2.5">
+      <div className="flex items-center gap-2.5">
+        <div className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md bg-sky-500/10 text-sky-500">
+          <Globe className="h-3.5 w-3.5 animate-pulse" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-[11px] font-semibold text-fg">Searching the web</div>
+          <div className="truncate text-[10.5px] text-fg-muted">
+            "{call.args?.query || '…'}"
+            {call.args?.topic === 'news' && <span className="ml-1.5 text-fg-subtle">· news</span>}
+            {call.args?.recencyDays ? <span className="ml-1.5 text-fg-subtle">· last {call.args.recencyDays}d</span> : null}
+          </div>
+        </div>
+        <div className="flex items-center gap-1 text-fg-subtle">
+          <span className="h-1.5 w-1.5 animate-think-pulse rounded-full bg-accent" />
+          <span className="text-[10px]">searching…</span>
+        </div>
+      </div>
     </div>
   )
 }
@@ -754,42 +966,84 @@ function WebSearchResults({ call }: { call: { args?: any; result?: any; status: 
 function FetchUrlResults({ call }: { call: { args?: any; result?: any; status: string } }) {
   if (call.status === 'pending') {
     return (
-      <div className="border-t border-border-subtle bg-bg-subtle/50 p-3 text-[11px] text-fg-muted">
-        <div className="flex items-center gap-2">
-          <Link2 className="h-3 w-3 animate-pulse text-emerald-500" />
-          <span>Fetching <span className="font-mono text-fg">{call.args?.url || '…'}</span>…</span>
+      <div className="border-t border-emerald-500/20 bg-emerald-500/[0.03] px-3 py-2.5">
+        <div className="flex items-center gap-2.5">
+          <div className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md bg-emerald-500/10 text-emerald-500">
+            <Link2 className="h-3.5 w-3.5 animate-pulse" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-[11px] font-semibold text-fg">Reading page</div>
+            <div className="truncate font-mono text-[10.5px] text-fg-muted">{call.args?.url || '…'}</div>
+          </div>
+          <div className="flex items-center gap-1 text-fg-subtle">
+            <span className="h-1.5 w-1.5 animate-think-pulse rounded-full bg-accent" />
+            <span className="text-[10px]">fetching…</span>
+          </div>
         </div>
       </div>
     )
   }
   if (call.status === 'error') {
     return (
-      <div className="border-t border-border-subtle bg-bg-subtle/50 p-3 text-[11px] text-danger">
-        {call.result?.error || 'Fetch failed.'}
+      <div className="border-t border-emerald-500/20 bg-emerald-500/5 p-3 text-[11.5px] text-danger">
+        <div className="flex items-center gap-2">
+          <Link2 className="h-3 w-3" />
+          <span>{call.result?.error || 'Fetch failed.'}</span>
+        </div>
       </div>
     )
   }
   const title = call.result?.title
   const url = call.result?.url || call.args?.url
-  const byteLength: number = call.result?.byteLength || (typeof call.result?.text === 'string' ? call.result.text.length : 0)
+  const text = typeof call.result?.text === 'string' ? call.result.text : ''
+  const byteLength: number = call.result?.byteLength || text.length
+  let host = ''
+  try {
+    if (url) host = new URL(url).hostname.replace(/^www\./, '')
+  } catch {
+    /* malformed URL */
+  }
   return (
-    <div className="border-t border-border-subtle bg-bg-subtle/40">
-      <div className="flex items-center gap-2 border-b border-border-subtle px-3 py-1.5 text-[10px] uppercase tracking-wider text-fg-subtle">
-        <Link2 className="h-3 w-3 text-emerald-500" />
-        <span>Fetched page</span>
-        {byteLength > 0 && (
-          <span className="ml-auto text-fg-muted normal-case tracking-normal">{byteLength.toLocaleString()} chars</span>
-        )}
+    <div className="border-t border-emerald-500/20 bg-emerald-500/[0.03]">
+      <div className="flex items-center gap-2.5 border-b border-emerald-500/15 px-3 py-2">
+        <div className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md bg-gradient-to-br from-emerald-500/15 to-emerald-500/5 font-mono text-[12px] font-semibold text-emerald-700 dark:text-emerald-300">
+          {(host || url || '?').charAt(0).toUpperCase()}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-[11px] font-semibold text-fg">Reading page</div>
+          <div className="truncate text-[10.5px] text-fg-muted">
+            {title ? <span className="text-fg">{title}</span> : null}
+            {title && host ? <span className="mx-1.5 text-fg-subtle">·</span> : null}
+            {host && <span className="font-mono">{host}</span>}
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5 text-[10px] text-fg-subtle">
+          {byteLength > 0 && (
+            <span className="rounded-full bg-emerald-500/10 px-1.5 py-0.5 font-semibold text-emerald-700 dark:text-emerald-300">
+              {(byteLength / 1000).toFixed(1)}k chars
+            </span>
+          )}
+          {url && (
+            <a
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="grid h-6 w-6 place-items-center rounded-md text-fg-subtle transition hover:bg-bg-muted hover:text-fg"
+              title="Open in new tab"
+            >
+              <ExternalLink className="h-3 w-3" />
+            </a>
+          )}
+        </div>
       </div>
-      <div className="px-3 py-2 text-[11.5px]">
-        <div className="font-medium text-fg">{title || url}</div>
-        {url && url !== title && <div className="truncate text-[10px] text-fg-subtle">{url}</div>}
-        {call.result?.text && (
-          <pre className="mt-2 max-h-40 overflow-y-auto whitespace-pre-wrap break-words rounded-md bg-bg/60 p-2 font-mono text-[10.5px] leading-relaxed text-fg-muted">
-            {call.result.text.slice(0, 1200)}{call.result.text.length > 1200 && '…'}
+      {text && (
+        <div className="px-3 py-2">
+          <pre className="max-h-40 overflow-y-auto whitespace-pre-wrap break-words rounded-md bg-bg/60 p-2.5 font-mono text-[10.5px] leading-relaxed text-fg-muted">
+            {text.slice(0, 1200)}{text.length > 1200 && '…'}
           </pre>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -865,9 +1119,36 @@ function ArtifactSearchResults({
                       body
                     </span>
                   )}
+                  {h.broadRecall && (
+                    <span
+                      className="rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-300"
+                      title="Matched via broad-recall (stem/prefix fallback)"
+                    >
+                      broad
+                    </span>
+                  )}
                 </div>
               )}
             </div>
+            {/* Show the match terms so the user can see why this artifact was
+                surfaced. Exact matches in emerald; stem/prefix in amber. */}
+            {h.matchDetails && h.matchDetails.length > 0 && (
+              <div className="mt-1 flex flex-wrap items-center gap-1 text-[9px]">
+                {h.matchDetails.map((m: any, k: number) => (
+                  <span
+                    key={k}
+                    className={
+                      m.exact
+                        ? 'rounded bg-emerald-500/10 px-1 py-0.5 font-mono text-emerald-700 dark:text-emerald-300'
+                        : 'rounded bg-amber-500/10 px-1 py-0.5 font-mono text-amber-700 dark:text-amber-300'
+                    }
+                    title={m.exact ? 'exact match' : 'stem/prefix fallback'}
+                  >
+                    {m.term}
+                  </span>
+                ))}
+              </div>
+            )}
             {/* AI summary is the main thing — it's what the model saw, so showing it to
                 the user keeps the chat legible. Falls back to the body snippet if the
                 summarizer hasn't run yet. */}

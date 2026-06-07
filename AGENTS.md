@@ -98,8 +98,55 @@ Build "Hatch" — a 100% client-side, BYOK, multi-provider AI cofounder web app 
   - **Pre-existing TS errors fixed**: `(ARTIFACT_TEMPLATES as any)[h.type]?.emoji` (was a Record-indexing-any issue), static `import { webSearch } from './search'` in `providers.ts` (was a dynamic import warning at build).
   - Production build clean: index 496.72 kB / 150.07 kB gz, ai-vendor 417.98 kB / 104.48 kB gz, react-vendor 179.39 kB / 58.99 kB gz, db-vendor 97.71 kB / 32.93 kB gz, CSS 42.85 kB / 7.89 kB gz
 
-### In Progress
-- (none — tool overhaul + web search verification shipped; awaiting next task)
+### Done (Claude-style web search UI + stronger prompt)
+- **`WebSearchResults` rewritten Claude-style** in `src/components/MessageList.tsx`:
+  - Extracted `WebSearchPending` — sky-500/03 tinted header with `Globe` icon, "Searching the web" label, query, topic/recency meta, pulsing `animate-think-pulse` dot
+  - Extracted `WebSearchSources` — header with cite-count badge (`N sources`), provider chip, `tookMs` chip
+  - Extracted `WebSearchSourceCard` — circular hostname-letter badge (gradient sky-500/15→/5), clickable title, hostname, URL, publishedDate chip, snippet (2 lines), hover-only external-link button, small `#N` cite label under the badge
+- **`FetchUrlResults` rewritten Claude-style** — same treatment with emerald-500/03 tint, hostname badge, char count chip, external-link button
+- **9 missed-tool-call detection patterns** in `src/lib/chat.ts` (was 5):
+  - Pattern 5 = code-fenced JSON ```json {…} ``` (moved BEFORE bare-JSON so the bare pattern doesn't eat the body first)
+  - Pattern 6 = bare JSON tool-call object on its own line
+  - Pattern 7 = `<function_calls>[{…}]</function_calls>` (OpenAI format) — now extracts ALL items in the array, not just the first
+  - Pattern 8 = bare JSON array of tool calls — now extracts ALL items
+  - Pattern 9 = `<output>…</output>` and `<response>…</response>` wrappers
+- **System prompt strengthened** in `src/lib/agents.ts` with two new sections:
+  - "HARD RULE — NEVER IMPERSONATE A TOOL CALL" listing 7+ BAD patterns the model must never write
+  - "WHEN YOU MUST CALL A TOOL BEFORE ANSWERING" with explicit trigger categories
+  - Updated "HOW TO CALL THEM WELL" with concrete good/bad query examples
+  - "IF YOU CAN'T CALL A TOOL" rule — never say "let me search" then answer from memory
+- **`scripts/smoke-strip-tool-calls.mts` extended** with 4 new test blocks (Tests 11-14) covering patterns 6, 7, 8, 9, plus Test 15 = exact **user scenario** (model writes "let me search" + `<function\web_search ...></function>` + answer from memory). **65/65 pass.**
+- Verified end-to-end: the user's exact bug report scenario (prose "Let me search the web for that" + angle-backslash missed call + post-call answer) now correctly strips the function syntax, preserves the surrounding prose, and surfaces the missed call with name=web_search, query, topic=news, recencyDays=30, and a `__missed_0__` pseudoId for the UI to render
+- `tsc --noEmit` clean; `npm run build` clean
+
+### Done ("Re-run missed search" interactive recovery)
+- **4 standalone tool executors extracted** from the inline `tool({ execute: ... })` blocks in `src/lib/chat.ts`:
+  - `runWebSearchTool({ query, maxResults, topic, recencyDays, signal })` — returns `{ ok, tookMs, source, count, query, topic, recencyDays, results, fullResults, error? }`
+  - `runFetchUrlTool({ url, maxChars, signal })` — returns `{ ok, tookMs, url, title, byteLength, contentType, status, text, error? }`
+  - `runSearchArtifactsTool({ query, maxResults, types, pinnedOnly })` — returns `{ ok, tookMs, summary, hits, fullHits, scanned, query, error? }`
+  - `runFetchArtifactTool({ id, maxChars })` — returns `{ ok, tookMs, id, title, type, summary, content, contentLength, truncated, error? }`
+  - All 4 reuse the same `NEWS_HINTS`, `pickToolResultsForModel`, and `trimForModel` helpers as the inline tool wrappers, so behavior is identical
+- **New public `rerunMissedToolCall({ name, args, signal })`** — dispatcher that routes to the right executor and returns a unified `{ name, status, result }` envelope the UI can drop into `toolOverrides`
+- **One-click "Run this search now" button** on the missed-call body in `ToolCallRow`:
+  - Per-tool copy: "Run this search now" (web_search), "Read this page now" (fetch_url), "Search my library now" (search_artifacts), "Read this artifact now" (fetch_artifact)
+  - Disabled state with `Loader2` spinner while rerunning; "Uses your configured search provider" hint
+  - After completion, the row's `result` no longer has `missed: true`, so `ToolCallRow` re-renders as the regular Claude-style result panel (WebSearchResults / FetchUrlResults / ArtifactSearchResults) — one-click upgrade from amber warning to real results
+- **`handleRerunMissedToolCall` in `src/pages/Chat.tsx`** — wires the button to the new API:
+  - Flips row to `pending` (UI spinner), persists to IndexedDB
+  - Calls `rerunMissedToolCall` with a fresh `AbortController` (separate from the chat stream abort)
+  - Drops the result into `toolOverrides` keyed by the missed row's `pseudoId`
+  - Persists the new status to Dexie so a page reload keeps the result
+  - Toasts the outcome ("Search complete · 5 results from tavily", "Library search · 3 matches", "Rerun failed · …")
+- **Smoke test** `scripts/smoke-rerun.mts` — **30/30 pass**:
+  - Unknown tool name returns structured error envelope
+  - fetch_url end-to-end against example.com (Node-only test, no Dexie needed)
+  - fetch_url with malformed URL returns error result (doesn't throw)
+  - fetch_url with pre-aborted AbortSignal throws AbortError (acceptable)
+  - web_search dispatches the right path with correct shape (count, source, fullResults, topic, recencyDays parsed as Number)
+  - search_artifacts dispatches the right path with correct shape (summary, hits, fullHits, scanned)
+  - fetch_artifact for nonexistent id returns error result
+  - Empty args for web_search doesn't crash
+- `tsc --noEmit` clean; `npm run build` clean
 
 ### Blocked
 - (none)

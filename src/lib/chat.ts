@@ -117,6 +117,61 @@ function parseJsonToolCall(json: string): { name: string; args: any } | null {
   return { name: j.name, args: parsedArgs }
 }
 
+/**
+ * Find the first balanced `{...}` JSON object in a string. Handles nested
+ * braces and string literals with escaped quotes (`\"`, `\\`). Returns
+ * the full slice (including the outer braces) or null if no balanced
+ * object is found. Used by the code-fenced tool-call pattern so a
+ * non-greedy regex doesn't match the inner `}` of a nested object and
+ * leave the outer code fence behind.
+ */
+function findFirstBalancedJsonObject(s: string): string | null {
+  const start = s.indexOf('{')
+  if (start < 0) return null
+  let depth = 0
+  let inString = false
+  let escape = false
+  for (let i = start; i < s.length; i++) {
+    const ch = s[i]
+    if (escape) { escape = false; continue }
+    if (ch === '\\') { escape = true; continue }
+    if (ch === '"') { inString = !inString; continue }
+    if (inString) continue
+    if (ch === '{') depth++
+    else if (ch === '}') {
+      depth--
+      if (depth === 0) return s.slice(start, i + 1)
+    }
+  }
+  return null
+}
+
+/**
+ * Find the first balanced `[...]` JSON array. Symmetric to
+ * `findFirstBalancedJsonObject` — used to extract a tool-call array
+ * from inside a code fence.
+ */
+function findFirstBalancedJsonArray(s: string): string | null {
+  const start = s.indexOf('[')
+  if (start < 0) return null
+  let depth = 0
+  let inString = false
+  let escape = false
+  for (let i = start; i < s.length; i++) {
+    const ch = s[i]
+    if (escape) { escape = false; continue }
+    if (ch === '\\') { escape = true; continue }
+    if (ch === '"') { inString = !inString; continue }
+    if (inString) continue
+    if (ch === '[') depth++
+    else if (ch === ']') {
+      depth--
+      if (depth === 0) return s.slice(start, i + 1)
+    }
+  }
+  return null
+}
+
 export interface StrippedToolCall {
   pseudoId: string
   name: string
@@ -148,6 +203,29 @@ export function stripTextBasedToolCalls(text: string): { clean: string; missed: 
       reason: 'The model wrote the tool call as text instead of invoking it via the API.',
     })
     return true
+  }
+
+  /**
+   * Walk an array of tool-call objects and record each one whose `name` is
+   * a known tool. Unknown tools are silently skipped. Returns true if at
+   * least one known tool was recorded — the caller uses this to decide
+   * whether to strip the array from the visible text.
+   *
+   * Replaces an earlier bug where the `<function_calls>` and bare-array
+   * patterns only recorded the FIRST item in a multi-call array, silently
+   * dropping every subsequent one.
+   */
+  const recordAllFromArray = (arr: any[]): boolean => {
+    let recordedAny = false
+    for (const item of arr) {
+      if (!item || typeof item.name !== 'string') continue
+      const args = item.arguments ?? item.args ?? item.parameters ?? {}
+      const parsedArgs = typeof args === 'string' ? safeJsonParse(args, {}) : args
+      if (recordMissed({ name: item.name, args: parsedArgs })) {
+        recordedAny = true
+      }
+    }
+    return recordedAny
   }
 
   // Pattern 1: <function\name {ARGS}></function>
@@ -182,7 +260,37 @@ export function stripTextBasedToolCalls(text: string): { clean: string; missed: 
     return m
   })
 
-  // Pattern 5: bare JSON tool-call block sitting on its own line/paragraph
+  // Pattern 5: code-fenced JSON tool call — object OR array (must run BEFORE
+  // the bare-JSON patterns below, otherwise the bare-JSON pattern will eat
+  // the JSON body and leave an empty ```json\n``` shell).
+  //
+  // Uses balanced-brace/bracket finders (not non-greedy regex) so a nested
+  // `}` inside `"arguments": {...}` doesn't make the regex stop at the inner
+  // close and leave the outer fence behind. Also covers both ` ``` ` and
+  // ` ```json ` (and any other language tag) — the inner content is parsed
+  // as JSON; if no recognised tool call is found, the fence is left alone
+  // (so legitimate code blocks aren't accidentally stripped).
+  out = out.replace(/```(?:[a-zA-Z]+)?\s*([\s\S]*?)\s*```/gi, (m, inner) => {
+    // Try a balanced JSON array first — covers multi-call patterns that an
+    // object-only finder would truncate to the first item (e.g. an array of
+    // two tool calls inside a code fence would only record the first one).
+    const arr = findFirstBalancedJsonArray(inner)
+    if (arr) {
+      try {
+        const parsed = JSON.parse(arr)
+        if (Array.isArray(parsed) && recordAllFromArray(parsed)) return ''
+      } catch { /* fall through */ }
+    }
+    // Then try a balanced JSON object
+    const obj = findFirstBalancedJsonObject(inner)
+    if (obj) {
+      const parsed = parseJsonToolCall(obj)
+      if (parsed && recordMissed(parsed)) return ''
+    }
+    return m
+  })
+
+  // Pattern 6: bare JSON tool-call block sitting on its own line/paragraph
   // (some models skip the wrapper entirely)
   out = out.replace(
     /(^|\n)(\s*\{\s*"name"\s*:\s*"(?:web_search|fetch_url|search_artifacts)"\s*,\s*"(?:arguments|args|parameters)"\s*:\s*[\s\S]*?\})(\s*(?:\n|$))/gi,
@@ -192,6 +300,73 @@ export function stripTextBasedToolCalls(text: string): { clean: string; missed: 
       return _m
     }
   )
+
+  // Pattern 7: <function_calls>[{...}]</function_calls> (OpenAI function-calling
+  //  format some open models imitate)
+  out = out.replace(/<function_calls\s*>\s*(\[[\s\S]*?\])\s*<\/function_calls>/gi, (m, blob) => {
+    let arr: any
+    try {
+      arr = JSON.parse(blob.trim())
+    } catch {
+      // Try stripping a trailing `}` before parse
+      let cleaned = blob.trim()
+      while (cleaned.endsWith('}') || cleaned.endsWith(']')) {
+        try {
+          arr = JSON.parse(cleaned)
+          break
+        } catch {
+          cleaned = cleaned.slice(0, -1)
+        }
+      }
+      if (!arr) return m
+    }
+    if (Array.isArray(arr)) {
+      let anyRecorded = false
+      for (const item of arr) {
+        if (item?.name) {
+          const args = item.arguments ?? item.args ?? item.parameters ?? {}
+          const parsedArgs = typeof args === 'string' ? safeJsonParse(args, {}) : args
+          if (recordMissed({ name: item.name, args: parsedArgs })) anyRecorded = true
+        }
+      }
+      if (anyRecorded) return ''
+    }
+    return m
+  })
+
+  // Pattern 8: bare JSON array of tool calls (no wrapper, no code fence)
+  // — e.g. `[{"name": "web_search", ...}, {"name": "fetch_url", ...}]`
+  out = out.replace(
+    /(^|\n)(\s*\[\s*\{\s*"name"\s*:\s*"(?:web_search|fetch_url|search_artifacts)"[\s\S]*?\}\s*\])\s*(\n|$)/gi,
+    (_m, lead, blob, tail) => {
+      let arr: any
+      try { arr = JSON.parse(blob.trim()) } catch { return _m }
+      if (!Array.isArray(arr)) return _m
+      let anyRecorded = false
+      for (const item of arr) {
+        if (item?.name) {
+          const args = item.arguments ?? item.args ?? item.parameters ?? {}
+          const parsedArgs = typeof args === 'string' ? safeJsonParse(args, {}) : args
+          if (recordMissed({ name: item.name, args: parsedArgs })) anyRecorded = true
+        }
+      }
+      if (anyRecorded) return lead + tail
+      return _m
+    }
+  )
+
+  // Pattern 9: some open-source models wrap the JSON in <output> or <response>
+  // tags instead of <function>
+  out = out.replace(/<output\s*>\s*([\s\S]*?)\s*<\/output>/gi, (m, blob) => {
+    const parsed = parseJsonToolCall(blob.trim())
+    if (parsed && recordMissed(parsed)) return ''
+    return m
+  })
+  out = out.replace(/<response\s*>\s*([\s\S]*?)\s*<\/response>/gi, (m, blob) => {
+    const parsed = parseJsonToolCall(blob.trim())
+    if (parsed && recordMissed(parsed)) return ''
+    return m
+  })
 
   // Collapse extra blank lines that the stripping may have left behind
   out = out.replace(/\n{3,}/g, '\n\n').trim()
@@ -209,6 +384,293 @@ function trimForModel(s: string, max: number): string {
   if (!s) return ''
   if (s.length <= max) return s
   return s.slice(0, max) + `\n\n[...truncated, ${s.length - max} more chars]`
+}
+
+/**
+ * Standalone executor for the `web_search` tool. Returns a result in the
+ * shape the UI's `WebSearchResults` / `ToolCallRow` components understand
+ * (with `fullResults` for the UI, `results` for the model, and timing/source
+ * metadata). Throws `DOMException('Aborted')` if `signal` aborts, and never
+ * throws on a normal provider error — it returns `{ ok: false, error }`
+ * instead so the caller can render the error in the row.
+ */
+export async function runWebSearchTool(opts: {
+  query: string
+  maxResults?: number
+  topic?: 'general' | 'news'
+  recencyDays?: number
+  signal?: AbortSignal
+}): Promise<{
+  ok: boolean
+  tookMs: number
+  source: string
+  count: number
+  query: string
+  topic: 'general' | 'news'
+  recencyDays?: number
+  results: SearchResult[]
+  fullResults: SearchResult[]
+  error?: string
+}> {
+  const start = Date.now()
+  const query = opts.query
+  const maxResults = opts.maxResults ?? 5
+  const effectiveTopic = opts.topic || (NEWS_HINTS.test(query) ? 'news' : 'general')
+  const effectiveRecency = opts.recencyDays || (effectiveTopic === 'news' ? 30 : undefined)
+  let result: SearchResult[] = []
+  let errorMsg: string | undefined
+  try {
+    result = await webSearch({
+      query,
+      maxResults,
+      topic: effectiveTopic,
+      recencyDays: effectiveRecency,
+      signal: opts.signal,
+    })
+    if (opts.signal?.aborted) throw new DOMException('Aborted', 'AbortError')
+  } catch (e: any) {
+    if (e?.name === 'AbortError') throw e
+    errorMsg = e?.message || String(e)
+  }
+  const tookMs = Date.now() - start
+  const modelResults = pickToolResultsForModel(result, TOOL_RESULT_MAX_CHARS)
+  return {
+    ok: !errorMsg,
+    tookMs,
+    source: result[0]?.source || 'none',
+    count: result.length,
+    query,
+    topic: effectiveTopic,
+    recencyDays: effectiveRecency,
+    results: modelResults,
+    fullResults: result,
+    ...(errorMsg ? { error: errorMsg } : {}),
+  }
+}
+
+/**
+ * Standalone executor for the `fetch_url` tool. Same shape contract as
+ * `runWebSearchTool`. Returns the page text trimmed to `TOOL_RESULT_MAX_CHARS`
+ * for the model; the full text is returned in `text` for the UI.
+ */
+export async function runFetchUrlTool(opts: {
+  url: string
+  maxChars?: number
+  signal?: AbortSignal
+}): Promise<{
+  ok: boolean
+  tookMs: number
+  url: string
+  title?: string
+  byteLength: number
+  contentType?: string
+  status?: number
+  text: string
+  error?: string
+}> {
+  const start = Date.now()
+  let page: FetchedPage | undefined
+  let errorMsg: string | undefined
+  try {
+    page = await fetchUrl(opts.url, { maxChars: opts.maxChars, signal: opts.signal })
+    if (opts.signal?.aborted) throw new DOMException('Aborted', 'AbortError')
+  } catch (e: any) {
+    if (e?.name === 'AbortError') throw e
+    errorMsg = e?.message || String(e)
+  }
+  const tookMs = Date.now() - start
+  if (!page) {
+    return {
+      ok: false,
+      tookMs,
+      url: opts.url,
+      byteLength: 0,
+      text: '',
+      error: errorMsg || 'Fetch failed',
+    }
+  }
+  return {
+    ok: true,
+    tookMs,
+    url: page.url,
+    title: page.title,
+    byteLength: page.byteLength,
+    contentType: page.contentType,
+    status: page.status,
+    text: trimForModel(page.text, TOOL_RESULT_MAX_CHARS),
+  }
+}
+
+/**
+ * Standalone executor for the `search_artifacts` tool. Hits the founder's
+ * own Library via BM25 in Dexie. `fullHits` carries the rich records the
+ * UI needs (timestamps, tags, pinned flag, snippet with `<mark>` highlights);
+ * `hits` is the compact model-facing version.
+ */
+export async function runSearchArtifactsTool(opts: {
+  query: string
+  maxResults?: number
+  types?: string[]
+  pinnedOnly?: boolean
+}): Promise<{
+  ok: boolean
+  tookMs: number
+  summary: string
+  hits: any[]
+  fullHits: any[]
+  scanned: number
+  query: string
+  error?: string
+}> {
+  const start = Date.now()
+  let result: Awaited<ReturnType<typeof searchArtifacts>> | null = null
+  let errorMsg: string | undefined
+  try {
+    result = await searchArtifacts({
+      query: opts.query,
+      maxResults: opts.maxResults,
+      types: opts.types as any,
+      pinnedOnly: opts.pinnedOnly,
+    })
+  } catch (e: any) {
+    errorMsg = e?.message || String(e)
+  }
+  const tookMs = Date.now() - start
+  const fullHits = result?.hits || []
+  // Fetch the full body of every hit so the model sees the founder's actual
+  // content, not just a 2-sentence summary. Parallel for speed; each cap
+  // is 6,000 chars to keep the search light.
+  const bodies = new Map<string, string>()
+  if (fullHits.length > 0 && !errorMsg) {
+    const fetched = await Promise.all(
+      fullHits.map((h) => fetchArtifactById(h.id, 6_000).catch(() => null))
+    )
+    fetched.forEach((a, i) => {
+      if (a) bodies.set(fullHits[i].id, a.content)
+    })
+  }
+  const compact = result
+    ? formatArtifactSearchResultForModel(result, bodies, 3_000)
+    : null
+  return {
+    ok: !errorMsg,
+    tookMs,
+    summary: compact?.summary || (errorMsg ? `Library search failed: ${errorMsg}` : ''),
+    hits: compact?.hits || [],
+    fullHits,
+    scanned: compact?.scanned ?? 0,
+    query: opts.query,
+    ...(errorMsg ? { error: errorMsg } : {}),
+  }
+}
+
+/**
+ * Standalone executor for the `fetch_artifact` tool. Returns the full body
+ * (trimmed) plus the AI-generated summary for context.
+ */
+export async function runFetchArtifactTool(opts: {
+  id: string
+  maxChars?: number
+}): Promise<{
+  ok: boolean
+  tookMs: number
+  id: string
+  title?: string
+  type?: string
+  summary?: string
+  content?: string
+  contentLength: number
+  truncated?: boolean
+  error?: string
+}> {
+  const start = Date.now()
+  let artifact: Awaited<ReturnType<typeof fetchArtifactById>> | null = null
+  let errorMsg: string | undefined
+  try {
+    artifact = await fetchArtifactById(opts.id, opts.maxChars ?? 12_000)
+  } catch (e: any) {
+    errorMsg = e?.message || String(e)
+  }
+  const tookMs = Date.now() - start
+  if (!artifact && !errorMsg) {
+    errorMsg = `No artifact found with id "${opts.id}".`
+  }
+  if (errorMsg) {
+    return { ok: false, tookMs, id: opts.id, contentLength: 0, error: errorMsg }
+  }
+  return {
+    ok: true,
+    tookMs,
+    id: artifact!.id,
+    title: artifact!.title,
+    type: artifact!.type,
+    summary: artifact!.summary,
+    content: artifact!.content,
+    contentLength: artifact!.contentLength,
+    truncated: artifact!.truncated,
+  }
+}
+
+/**
+ * Re-run a tool call that the model emitted as text (i.e. didn't actually
+ * invoke via the API). The user can click "Run this search now" on a missed
+ * call row, and this is what fires. Returns a unified result envelope the
+ * UI can drop directly into the `toolOverrides` state to flip the row from
+ * `error/missed` to `ok` with the real result.
+ *
+ * Unknown tool names throw — callers should only pass names from the
+ * missed-call record (which are already restricted to KNOWN_TOOL_NAMES).
+ */
+export async function rerunMissedToolCall(opts: {
+  name: string
+  args: any
+  signal?: AbortSignal
+}): Promise<
+  | { name: 'web_search'; status: 'ok' | 'error'; result: Awaited<ReturnType<typeof runWebSearchTool>> }
+  | { name: 'fetch_url'; status: 'ok' | 'error'; result: Awaited<ReturnType<typeof runFetchUrlTool>> }
+  | { name: 'search_artifacts'; status: 'ok' | 'error'; result: Awaited<ReturnType<typeof runSearchArtifactsTool>> }
+  | { name: 'fetch_artifact'; status: 'ok' | 'error'; result: Awaited<ReturnType<typeof runFetchArtifactTool>> }
+  | { name: string; status: 'error'; result: { error: string } }
+> {
+  const { name, args, signal } = opts
+  if (name === 'web_search') {
+    try {
+      const r = await runWebSearchTool({
+        query: args?.query,
+        maxResults: args?.maxResults,
+        topic: args?.topic,
+        recencyDays: args?.recencyDays ? Number(args.recencyDays) : undefined,
+        signal,
+      })
+      return { name: 'web_search', status: r.ok ? 'ok' : 'error', result: r }
+    } catch (e: any) {
+      if (e?.name === 'AbortError') throw e
+      return { name: 'web_search', status: 'error', result: { ok: false, tookMs: 0, source: 'none', count: 0, query: args?.query || '', topic: 'general', results: [], fullResults: [], error: e?.message || String(e) } }
+    }
+  }
+  if (name === 'fetch_url') {
+    try {
+      const r = await runFetchUrlTool({ url: args?.url, maxChars: args?.maxChars, signal })
+      return { name: 'fetch_url', status: r.ok ? 'ok' : 'error', result: r }
+    } catch (e: any) {
+      if (e?.name === 'AbortError') throw e
+      return { name: 'fetch_url', status: 'error', result: { ok: false, tookMs: 0, url: args?.url || '', byteLength: 0, text: '', error: e?.message || String(e) } }
+    }
+  }
+  if (name === 'search_artifacts') {
+    const r = await runSearchArtifactsTool({
+      query: args?.query,
+      maxResults: args?.maxResults,
+      types: Array.isArray(args?.types) ? args.types : undefined,
+      pinnedOnly: args?.pinnedOnly,
+    })
+    return { name: 'search_artifacts', status: r.ok ? 'ok' : 'error', result: r }
+  }
+  if (name === 'fetch_artifact') {
+    const r = await runFetchArtifactTool({ id: args?.id, maxChars: args?.maxChars })
+    return { name: 'fetch_artifact', status: r.ok ? 'ok' : 'error', result: r }
+  }
+  return { name, status: 'error', result: { error: `Unknown tool: ${name}` } }
 }
 
 function pickToolResultsForModel(results: SearchResult[], maxChars: number): SearchResult[] {
@@ -314,13 +776,15 @@ export async function runChat(req: ChatRequest, cb: StreamCallbacks): Promise<st
     // -- Tool: search_artifacts --------------------------------------------
     // Search the founder's OWN saved library. Critical for grounding answers
     // in their previous work. The UI has a dedicated result renderer; the
-    // tool just runs BM25 and returns the hits.
+    // tool runs a broad-recall BM25 + stem/prefix fallback and returns the
+    // hits WITH the full body of each (trimmed to 3,000 chars per hit) so
+    // the model can quote, cite, and ground in detail.
     const searchArtifactsTool = tool({
       description:
-        "Search the founder's own saved Library of artifacts (strategies, 90-day plans, pricing models, teardowns, etc.). Call this whenever the founder asks about something they have worked on before, asks to find a strategy, asks what they decided, or asks to look in their library — or any time grounding in their own previous work would help.",
+        "Search the founder's own saved Library of artifacts (strategies, 90-day plans, pricing models, teardowns, etc.). Call this whenever the founder asks about something they have worked on before, asks to find a strategy, asks what they decided, or asks to look in their library — or any time grounding in their own previous work would help. The tool is tuned for BROAD RECALL: it returns artifacts whose body, title, OR tags contain ANY of your query words, including via stem/prefix fallback (e.g. 'strate' matches 'strategy', 'pric' matches 'pricing'/'prices'/'priced'). Each hit is returned WITH the full markdown body (trimmed to 3,000 chars) so you can quote and cite specifics — you do not need a second call unless you need the rest of a long artifact.",
       inputSchema: z.object({
-        query: z.string().describe('Natural-language search query. The Library page uses BM25 to rank matches across titles, tags, and body content.'),
-        maxResults: z.number().int().min(1).max(20).optional().describe('Max results to return (default 5).'),
+        query: z.string().describe('Natural-language search query. 1-6 keywords. The Library uses broad-recall BM25 with body-content matching — broader queries are fine, the search engine will surface near-matches too.'),
+        maxResults: z.number().int().min(1).max(20).optional().describe('Max results to return (default 8).'),
         types: z.array(z.enum(['strategy', 'plan90', 'landing', 'pricing', 'pitch', 'review', 'teardown', 'investor', 'custom'])).optional().describe('Restrict to specific artifact types.'),
         pinnedOnly: z.boolean().optional().describe('If true, only return pinned artifacts.'),
       }),
@@ -347,7 +811,7 @@ export async function runChat(req: ChatRequest, cb: StreamCallbacks): Promise<st
         let errorMsg: string | undefined
         let aborted = false
         try {
-          result = await searchArtifacts({ query, maxResults, types: types as any, pinnedOnly })
+          result = await searchArtifacts({ query, maxResults: maxResults ?? 8, types: types as any, pinnedOnly })
         } catch (e: any) {
           if (e?.name === 'AbortError' || options.abortSignal?.aborted) {
             aborted = true
@@ -360,8 +824,25 @@ export async function runChat(req: ChatRequest, cb: StreamCallbacks): Promise<st
           emitStep({ id: stepId, label: 'Searching your library', status: 'done', detail: 'aborted' })
           throw new DOMException('Aborted', 'AbortError')
         }
-        const compact = result ? formatArtifactSearchResultForModel(result) : null
+        // Fetch the full body of every hit in parallel so the MODEL can
+        // ground its answer in the founder's actual content (numbers,
+        // quotes, the real plan) — not just the 2-3 sentence summary.
+        // This is the change that makes `search_artifacts` actually useful:
+        // the model previously only saw a TL;DR and had to call
+        // `fetch_artifact` to see anything real, which it rarely did.
         const fullHits = result?.hits || []
+        const bodies = new Map<string, string>()
+        if (fullHits.length > 0 && !errorMsg) {
+          const fetched = await Promise.all(
+            fullHits.map((h) => fetchArtifactById(h.id, 6_000).catch(() => null))
+          )
+          fetched.forEach((a, i) => {
+            if (a) bodies.set(fullHits[i].id, a.content)
+          })
+        }
+        const compact = result
+          ? formatArtifactSearchResultForModel(result, bodies, 3_000)
+          : null
         const callResult = {
           ok: !errorMsg,
           tookMs,

@@ -1,14 +1,17 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, ensureSettings, ensureCompany } from '@/lib/db'
-import { unwrapKeyWithPassphrase, setUnlockedKey, isUnlocked } from '@/lib/crypto'
+import { db, ensureSettings, ensureCompany, resetAllData } from '@/lib/db'
+import { unwrapKeyWithPassphrase, setUnlockedKey, isUnlocked, lock } from '@/lib/crypto'
 import { useToast } from '@/components/Toast'
-import { Eye, EyeOff, ArrowRight, Sparkles } from 'lucide-react'
+import { Eye, EyeOff, ArrowRight, Sparkles, AlertTriangle, KeyRound, Trash2, Loader2 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { FloatingMark } from '@/components/FloatingMark'
 import { AmbientAurora } from '@/components/AmbientAurora'
 import { ParticleField } from '@/components/ParticleField'
+import { cn } from '@/lib/utils'
+
+const RESET_CONFIRM_PHRASE = 'RESET MY VAULT'
 
 export function Vault() {
   const settings = useLiveQuery(() => db.settings.get('singleton'), [])
@@ -16,6 +19,7 @@ export function Vault() {
   const [passphrase, setPassphrase] = useState('')
   const [show, setShow] = useState(false)
   const [unlocking, setUnlocking] = useState(false)
+  const [showReset, setShowReset] = useState(false)
   const navigate = useNavigate()
   const toast = useToast()
 
@@ -49,7 +53,7 @@ export function Vault() {
       const target = settings?.hasOnboarded ? '/' : '/welcome'
       navigate(target, { replace: true })
     } catch (e) {
-      toast.error('Wrong passphrase', 'Try again.')
+      toast.error('Wrong passphrase', 'Try again, or reset the vault below.')
     } finally {
       setUnlocking(false)
       setPassphrase('')
@@ -105,11 +109,130 @@ export function Vault() {
           </button>
         </div>
 
-        <div className="mt-6 flex items-center gap-2 text-[11px] text-fg-subtle">
-          <Sparkles className="h-3 w-3" />
-          <span>Forgot it? Your data is unrecoverable. There is no reset.</span>
+        <div className="mt-6 border-t border-border pt-4">
+          {!showReset ? (
+            <button
+              onClick={() => setShowReset(true)}
+              className="inline-flex items-center gap-1.5 text-[12px] text-fg-muted transition hover:text-fg focus-ring rounded-md"
+            >
+              <KeyRound className="h-3.5 w-3.5" />
+              Forgot your passphrase?
+            </button>
+          ) : (
+            <VaultResetPanel
+              onCancel={() => setShowReset(false)}
+              onResetDone={() => {
+                // Belt-and-suspenders: keep the in-memory key clear after a wipe.
+                lock()
+                setPassphrase('')
+                setShowReset(false)
+                // Full reload lands on /welcome. App's ensureSettings() recreates
+                // a fresh row with hasOnboarded: false, so Onboarding's full
+                // 4-step wizard (passphrase + provider + business + ready) runs
+                // as if this were the first launch.
+                location.assign('/welcome')
+              }}
+            />
+          )}
         </div>
+
+        {!showReset && (
+          <div className="mt-3 flex items-center gap-2 text-[11px] text-fg-subtle">
+            <Sparkles className="h-3 w-3" />
+            <span>Your data is encrypted in this browser. We can't see it.</span>
+          </div>
+        )}
       </motion.div>
     </div>
+  )
+}
+
+function VaultResetPanel({ onCancel, onResetDone }: { onCancel: () => void; onResetDone: () => void }) {
+  const [confirm, setConfirm] = useState('')
+  const [resetting, setResetting] = useState(false)
+  const toast = useToast()
+  const canSubmit = confirm.trim() === RESET_CONFIRM_PHRASE && !resetting
+
+  const doReset = async () => {
+    if (!canSubmit) return
+    setResetting(true)
+    try {
+      // 1) Drop the in-memory DEK so any stale references from a prior unlock
+      //    can't accidentally decrypt the freshly-empty DB.
+      lock()
+      // 2) Wipe IndexedDB (settings, passphraseWrap, company, conversations,
+      //    messages, artifacts, memoryEvents, checkIns, tasks).
+      await resetAllData()
+      // 3) Reload to /welcome so React state, Dexie handles, and live queries
+      //    re-initialize against a clean DB. App.tsx's ensureSettings() will
+      //    see hasOnboarded: false and route into the 4-step Onboarding.
+      toast.info('Vault reset', 'Setting things up fresh…')
+      onResetDone()
+    } catch (e: any) {
+      setResetting(false)
+      toast.error('Reset failed', e?.message || 'Try again.')
+    }
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -4 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.18 }}
+      className="rounded-2xl border border-danger/40 bg-danger/5 p-4"
+    >
+      <div className="flex items-start gap-2.5">
+        <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-danger" />
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-medium text-danger">Reset your vault</div>
+          <p className="mt-1 text-[12px] leading-relaxed text-fg-muted">
+            This <strong>permanently deletes</strong> every conversation, artifact, memory, and API key
+            stored in this browser. There is no undo. After reset, Hatch will run the first-time
+            setup so you can pick a new passphrase and start fresh.
+          </p>
+
+          <div className="mt-3 space-y-2">
+            <label className="block text-[11px] font-medium text-fg-muted">
+              Type <code className="rounded bg-danger/10 px-1 py-0.5 font-mono text-[10px] text-danger">{RESET_CONFIRM_PHRASE}</code> to confirm
+            </label>
+            <input
+              type="text"
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && canSubmit && doReset()}
+              placeholder={RESET_CONFIRM_PHRASE}
+              autoComplete="off"
+              spellCheck={false}
+              disabled={resetting}
+              className={cn(
+                'w-full rounded-lg border bg-bg px-2.5 py-1.5 text-sm placeholder:text-fg-subtle',
+                'focus:border-fg/20 focus:outline-none focus:ring-2 focus:ring-danger/20',
+                confirm && confirm.trim() !== RESET_CONFIRM_PHRASE
+                  ? 'border-danger/40'
+                  : 'border-border'
+              )}
+            />
+          </div>
+
+          <div className="mt-3 flex items-center gap-2">
+            <button
+              onClick={doReset}
+              disabled={!canSubmit}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-danger px-3 py-1.5 text-xs font-medium text-bg transition hover:bg-danger/90 focus-ring disabled:opacity-50"
+            >
+              {resetting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+              {resetting ? 'Erasing…' : 'Erase everything & start over'}
+            </button>
+            <button
+              onClick={onCancel}
+              disabled={resetting}
+              className="rounded-lg px-3 py-1.5 text-xs text-fg-muted transition hover:bg-bg-muted focus-ring disabled:opacity-50"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    </motion.div>
   )
 }

@@ -1,31 +1,45 @@
 /**
  * In-memory search over saved artifacts.
  *
- * This is a lightweight BM25-style ranker. It does not require any external
- * service, embeddings, or network calls — perfect for a 100% client-side app.
- * The agent can call `searchArtifacts({ query })` as a tool to retrieve
- * previously saved artifacts (strategies, plans, pricing models, etc.) and
- * ground its answers in the founder's own work.
+ * This is a BM25-style ranker tuned for **broad recall** + **body-content
+ * matching** for non-technical founders. The agent can call
+ * `searchArtifacts({ query })` as a tool to retrieve previously saved
+ * artifacts (strategies, plans, pricing models, etc.) and ground its
+ * answers in the founder's own work.
  *
- * Scoring:
- *  - tokenize on word boundaries, lowercase, strip punctuation
- *  - per-term BM25 IDF (with floor of 0 so rare terms still rank)
- *  - per-doc TF saturated at ~3 occurrences
- *  - length normalization (k1=1.5, b=0.75)
- *  - title hits weighted 3x, tag hits weighted 2x, body 1x
- *  - pinned artifacts get a small boost
- *  - recency decay so the most recently updated wins ties
+ * Design goals (in order of importance):
+ *  1. RECALL — if a single word in the body matches a single word in the
+ *     query, surface that artifact. The model would rather see 10 near-misses
+ *     than 1 perfect match and miss the rest.
+ *  2. BODY-CONTENT — body matches are weighted as heavily as title matches.
+ *     Non-technical founders often give artifacts a generic title (e.g.
+ *     "Notes") and the actual content is in the body. The previous weighting
+ *     of body=1 vs title=3 buried those.
+ *  3. ROBUST — prefix matching, simple suffix-stemming, and hyphen splitting
+ *     so "Hatch-2026-strategy" matches "hatch" and "2026" and "strategy".
+ *  4. EXPLAINABLE — the model gets the FULL trimmed body of every hit, not
+ *     just a 2-sentence summary, so it can quote, cite, and ground in detail.
  */
 
 import { db, type Artifact } from './db'
+import {
+  tokenize,
+  stem,
+  FIELD_WEIGHT_TITLE,
+  FIELD_WEIGHT_TAG,
+  FIELD_WEIGHT_BODY,
+} from './searchUtils'
+
+// Re-export so existing callers (`Library.tsx`, etc.) still work.
+export { tokenize as tokenizeForSearch } from './searchUtils'
 
 export interface ArtifactSearchHit {
   id: string
   title: string
   type: Artifact['type']
-  /** AI-generated 2-3 sentence summary (when available). The chat model sees THIS, not the body, to keep context lean. */
+  /** AI-generated 2-3 sentence summary (when available). Kept for backwards-compat with UI. */
   summary?: string
-  /** Short snippet around the best match (body field). ~200 chars. Only used by the UI; not sent to the model by default. */
+  /** Short snippet around the best match in the body. ~200 chars. */
   snippet: string
   /** Final score (higher is better). */
   score: number
@@ -39,11 +53,22 @@ export interface ArtifactSearchHit {
   tags?: string[]
   /** True if pinned. */
   pinned?: boolean
+  /** True if at least one match came from a prefix/substring fallback (broad recall). */
+  broadRecall?: boolean
+  /**
+   * Debug breakdown of which query terms hit which fields. Useful for the
+   * UI's "View matches" toggle and for the model to cite specific phrases.
+   */
+  matchDetails?: Array<{
+    term: string
+    fields: Array<'title' | 'tags' | 'content'>
+    exact: boolean
+  }>
 }
 
 export interface ArtifactSearchOptions {
   query: string
-  /** Cap results (default 5, max 20). */
+  /** Cap results (default 8, max 20). Defaults are bumped so broad queries still surface enough. */
   maxResults?: number
   /** Restrict to certain types (e.g. ['strategy', 'plan90']). Empty = all. */
   types?: Artifact['type'][]
@@ -59,29 +84,12 @@ export interface ArtifactSearchResult {
   query: string
 }
 
-const STOPWORDS = new Set([
-  'a', 'an', 'and', 'are', 'as', 'at', 'be', 'by', 'for', 'from',
-  'has', 'have', 'in', 'is', 'it', 'of', 'on', 'or', 'that',
-  'the', 'this', 'to', 'was', 'were', 'will', 'with', 'i', 'you',
-  'we', 'our', 'my', 'me', 'do', 'does', 'can', 'should', 'would',
-  'what', 'how', 'when', 'where', 'which', 'who', 'why', 'their',
-  'they', 'them', 'his', 'her', 'its', 'about', 'into', 'over',
-])
-
-function tokenize(text: string): string[] {
-  if (!text) return []
-  return text
-    .toLowerCase()
-    .replace(/[`*_~>#\-]/g, ' ')
-    .replace(/[^a-z0-9\s]/g, ' ')
-    .split(/\s+/)
-    .filter((t) => t.length >= 2 && !STOPWORDS.has(t))
-}
-
-/** Exported so the UI can highlight snippets with the same stopword-aware tokens the search used. */
-export function tokenizeForSearch(text: string): string[] {
-  return tokenize(text)
-}
+/**
+ * Minimal stopword set. Re-exported from `./searchUtils` so the smoke
+ * tests and any other future consumer (full-text search, etc.) can
+ * share the exact same tokenization.
+ */
+// (kept for clarity; the real STOPWORDS is imported from searchUtils)
 
 function snippetAround(text: string, queryTokens: string[]): string {
   if (!text) return ''
@@ -109,7 +117,7 @@ function snippetAround(text: string, queryTokens: string[]): string {
  */
 export function highlightSnippet(snippet: string, queryTokens: string[]): Array<{ text: string; match: boolean }> {
   if (!snippet) return []
-  const toks = Array.from(new Set(queryTokens.filter((t) => t.length >= 2))).sort((a, b) => b.length - a.length)
+  const toks = Array.from(new Set(queryTokens.filter((t) => t.length >= 1))).sort((a, b) => b.length - a.length)
   if (toks.length === 0) return [{ text: snippet, match: false }]
   const escaped = toks.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
   const re = new RegExp(`(${escaped.join('|')})`, 'gi')
@@ -130,23 +138,27 @@ interface IndexedDoc {
   titleTokens: string[]
   bodyTokens: string[]
   tagTokens: string[]
+  // Stems (for fallback matching)
+  titleStems: Set<string>
+  bodyStems: Set<string>
+  tagStems: Set<string>
   // Per-term frequency tables
   titleTf: Map<string, number>
   bodyTf: Map<string, number>
   tagTf: Map<string, number>
+  // Per-term stem frequency tables (for stem matches)
+  titleStemTf: Map<string, number>
+  bodyStemTf: Map<string, number>
+  tagStemTf: Map<string, number>
   // Doc length (sum of token counts with field weights)
   weightedLen: number
   // Distinct terms in doc
   docFreq: number
 }
 
-const FIELD_WEIGHT_TITLE = 3
-const FIELD_WEIGHT_TAG = 2
-const FIELD_WEIGHT_BODY = 1
-
 function indexArtifact(a: Artifact): IndexedDoc {
   const titleTokens = tokenize(a.title)
-  const bodyTokens = tokenize(a.content)
+  const bodyTokens = tokenize(a.content || '')
   const tagTokens = (a.tags || []).flatMap((t) => tokenize(t))
 
   const countTf = (tokens: string[]): Map<string, number> => {
@@ -158,6 +170,21 @@ function indexArtifact(a: Artifact): IndexedDoc {
   const titleTf = countTf(titleTokens)
   const bodyTf = countTf(bodyTokens)
   const tagTf = countTf(tagTokens)
+
+  const collectStems = (tokens: string[]): { stems: Set<string>; tf: Map<string, number> } => {
+    const stems = new Set<string>()
+    const tf = new Map<string, number>()
+    for (const t of tokens) {
+      const s = stem(t)
+      stems.add(s)
+      tf.set(s, (tf.get(s) || 0) + 1)
+    }
+    return { stems, tf }
+  }
+
+  const tStem = collectStems(titleTokens)
+  const bStem = collectStems(bodyTokens)
+  const gStem = collectStems(tagTokens)
 
   const weightedLen =
     titleTokens.length * FIELD_WEIGHT_TITLE +
@@ -175,9 +202,15 @@ function indexArtifact(a: Artifact): IndexedDoc {
     titleTokens,
     bodyTokens,
     tagTokens,
+    titleStems: tStem.stems,
+    bodyStems: bStem.stems,
+    tagStems: gStem.stems,
     titleTf,
     bodyTf,
     tagTf,
+    titleStemTf: tStem.tf,
+    bodyStemTf: bStem.tf,
+    tagStemTf: gStem.tf,
     weightedLen,
     docFreq: distinct.size,
   }
@@ -229,12 +262,66 @@ function bm25DocScore(
 }
 
 /**
+ * BROAD RECALL tier: prefix + stem + substring fallback.
+ *
+ * For every query token that did NOT match in tier 1 (BM25), we try:
+ *  1. Stem match (pricing → pric matches priced/prices)
+ *  2. Prefix match for tokens ≥ 4 chars (strate matches strategy)
+ *
+ * Each broad match contributes a small score so a doc with a single
+ * prefix hit doesn't outrank a doc with three exact hits, but it WILL
+ * outrank a doc with zero matches. This is the "even a word matches →
+ * return the whole artifact" guarantee the user asked for.
+ */
+function broadMatchScore(
+  queryTokens: string[],
+  doc: IndexedDoc
+): { score: number; matches: Array<{ term: string; fields: Array<'title' | 'tags' | 'content'>; exact: boolean }> } {
+  let score = 0
+  const matches: Array<{ term: string; fields: Array<'title' | 'tags' | 'content'>; exact: boolean }> = []
+
+  for (const q of queryTokens) {
+    if (q.length < 2) continue
+    const qStem = stem(q)
+    const fields: Array<'title' | 'tags' | 'content'> = []
+    let exact = true
+
+    // 1. Stem match: a doc token whose stem equals the query stem
+    for (const t of doc.titleTokens) if (stem(t) === qStem) fields.push('title')
+    for (const t of doc.tagTokens) if (stem(t) === qStem) fields.push('tags')
+    for (const t of doc.bodyTokens) if (stem(t) === qStem) fields.push('content')
+
+    // 2. Prefix match (only if stem didn't already find it). For tokens ≥ 4
+    //    chars, a doc token that starts with the query is a real hit.
+    if (fields.length === 0 && q.length >= 4) {
+      for (const t of doc.titleTokens) if (t.startsWith(q) && t !== q) fields.push('title')
+      for (const t of doc.tagTokens) if (t.startsWith(q) && t !== q) fields.push('tags')
+      for (const t of doc.bodyTokens) if (t.startsWith(q) && t !== q) fields.push('content')
+      if (fields.length > 0) exact = false
+    }
+
+    if (fields.length > 0) {
+      const uniq = Array.from(new Set(fields))
+      // Stem hits are slightly stronger than prefix hits because they imply
+      // a real inflectional variant. Prefix hits are weaker (could be a
+      // coincidental substring like "art" matching "article" AND "artisan").
+      matches.push({ term: q, fields: uniq, exact })
+      const baseBoost = exact ? 0.6 : 0.3
+      const fieldCount = uniq.length
+      score += baseBoost * (1 + 0.2 * (fieldCount - 1))
+    }
+  }
+
+  return { score, matches }
+}
+
+/**
  * Run a search across all saved artifacts. Pulls directly from Dexie so it's
  * always consistent with the user's Library. Empty query returns the most
  * recently updated artifacts (a "browse" mode).
  */
 export async function searchArtifacts(opts: ArtifactSearchOptions): Promise<ArtifactSearchResult> {
-  const max = Math.max(1, Math.min(opts.maxResults ?? 5, 20))
+  const max = Math.max(1, Math.min(opts.maxResults ?? 8, 20))
   let artifacts = await db.artifacts.toArray()
 
   // Apply type filter
@@ -289,72 +376,142 @@ export async function searchArtifacts(opts: ArtifactSearchOptions): Promise<Arti
   const idfMap = computeIdf(indexed)
 
   const scored = indexed.map((doc) => {
+    // Tier 1: exact BM25 over raw tokens
     const baseScore = bm25DocScore(queryTf, doc, idfMap, avgLen)
-    const matchedFields: Array<'title' | 'tags' | 'content'> = []
+    const exactMatchedFields: Array<'title' | 'tags' | 'content'> = []
     for (const t of queryTokens) {
-      if (doc.titleTf.has(t)) matchedFields.push('title')
-      if (doc.tagTf.has(t)) matchedFields.push('tags')
-      if (doc.bodyTf.has(t)) matchedFields.push('content')
+      if (doc.titleTf.has(t)) exactMatchedFields.push('title')
+      if (doc.tagTf.has(t)) exactMatchedFields.push('tags')
+      if (doc.bodyTf.has(t)) exactMatchedFields.push('content')
     }
-    const fields = Array.from(new Set(matchedFields))
-    // If the doc has no term matches, the boosts must not promote it into the
-    // results — otherwise a query that matches nothing returns the whole
-    // library (because every doc gets a positive recencyBoost).
-    if (baseScore === 0 && fields.length === 0) {
-      return { doc, score: 0, fields }
-    }
+    const exactFields = Array.from(new Set(exactMatchedFields))
+
+    // Tier 2: broad recall (stem + prefix) for any token that didn't hit
+    // in tier 1. This is what makes a query like "strate" still find
+    // "strategy", or "pric" find "pricing" + "prices" + "priced".
+    const broad = broadMatchScore(queryTokens, doc)
+    // Union of fields actually matched (tier 1 + tier 2)
+    const allFields = Array.from(new Set([...exactFields, ...broad.matches.flatMap((m) => m.fields)]))
+
     // Field coverage bonus: hits in more fields rank higher
-    const coverageBonus = fields.length * 0.4
-    // Pinned boost
-    const pinBonus = doc.artifact.pinned ? 0.6 : 0
+    const coverageBonus = allFields.length * 0.5
+    // Pinned boost (slightly stronger than before — pinned is the user's
+    // explicit "this is the important one" signal)
+    const pinBonus = doc.artifact.pinned ? 0.8 : 0
     // Mild recency decay (so newer wins ties): 1 / (1 + daysSince/30)
     const daysSince = (Date.now() - doc.artifact.updatedAt) / 86_400_000
     const recencyBoost = 0.3 / (1 + daysSince / 30)
-    const total = baseScore + coverageBonus + pinBonus + recencyBoost
-    return { doc, score: total, fields }
+
+    // Recency + pin are scored for ALL docs; the base + broad are zero for
+    // non-matches. The intent is: every doc that matches SOMETHING (exact
+    // OR broad) gets included; pure-noise docs are filtered by the
+    // `score > 0` gate below.
+    const total = baseScore + broad.score + coverageBonus + pinBonus + recencyBoost
+
+    // Match detail (for the UI's "View matches" toggle)
+    const matchDetails: Array<{ term: string; fields: Array<'title' | 'tags' | 'content'>; exact: boolean }> = []
+    // Walk query tokens again to record which terms hit in tier 1
+    for (const t of queryTokens) {
+      const inTitle = doc.titleTf.has(t)
+      const inTag = doc.tagTf.has(t)
+      const inBody = doc.bodyTf.has(t)
+      if (inTitle || inTag || inBody) {
+        const fields: Array<'title' | 'tags' | 'content'> = []
+        if (inTitle) fields.push('title')
+        if (inTag) fields.push('tags')
+        if (inBody) fields.push('content')
+        matchDetails.push({ term: t, fields, exact: true })
+      }
+    }
+    // Add broad matches (skip ones already covered by exact)
+    for (const m of broad.matches) {
+      if (!matchDetails.some((d) => d.term === m.term)) {
+        matchDetails.push(m)
+      }
+    }
+
+    return {
+      doc,
+      score: total,
+      baseScore,
+      broadScore: broad.score,
+      fields: allFields,
+      broadRecall: broad.matches.length > 0 && broad.score >= baseScore * 0.5,
+      matchDetails,
+    }
   })
 
+  // Filter: every doc with ANY match (exact OR broad OR both) is included.
+  // Recency/pin boosts alone can NOT push a no-match doc into the results —
+  // this is critical: a query with zero matches should return 0 hits, not
+  // the most-recently-updated artifact.
   const hits = scored
-    .filter((s) => s.score > 0)
+    .filter((s) => s.baseScore > 0 || s.broadScore > 0)
     .sort((a, b) => b.score - a.score)
     .slice(0, max)
-    .map(({ doc, score, fields }) => ({
+    .map(({ doc, score, fields, broadRecall, matchDetails }) => ({
       id: doc.artifact.id,
       title: doc.artifact.title,
       type: doc.artifact.type,
       summary: doc.artifact.summary,
-      snippet: snippetAround(doc.artifact.content, queryTokens),
+      snippet: snippetAround(doc.artifact.content || '', queryTokens),
       score: Math.round(score * 100) / 100,
       matchedFields: fields,
       updatedAt: doc.artifact.updatedAt,
       createdAt: doc.artifact.createdAt,
       tags: doc.artifact.tags,
       pinned: doc.artifact.pinned,
+      broadRecall,
+      matchDetails,
     }))
 
   return { hits, scanned, query: trimmed }
 }
 
 /**
- * Lightweight helper for the agent's tool call result. Returns a compact JSON
- * representation the model can read inline, plus a human-readable summary
- * snippet the UI can show.
+ * Lightweight helper for the agent's tool call result. Returns a compact
+ * representation the model can read inline.
  *
- * **Summary-first**: prefers the AI-generated `summary` field over the
- * body snippet. This keeps the tool result small (a few hundred tokens
- * per hit instead of thousands) so the model's context window doesn't
- * choke as the library grows. If no summary is available yet, falls back
- * to the short body snippet.
+ * **BODY-FIRST**: unlike the previous version (which sent only the AI
+ * summary), this returns the FULL markdown body of every hit (trimmed to
+ * `maxCharsPerHit`, default 3000 chars). That keeps the model grounded in
+ * the founder's actual content — numbers, quotes, the real plan — instead
+ * of the summary's compression. The model can still call `fetch_artifact`
+ * if it needs the rest.
+ *
+ * The `bodies` map is keyed by artifact id; it's the full body of each
+ * hit, fetched in parallel by the caller (chat.ts) after the search
+ * returns. We do the body fetch in the caller (not in `searchArtifacts`)
+ * to keep the search engine lean for the UI's "browse" use case (Library
+ * page) where we only need snippets, not full bodies.
+ *
+ * The `summary` (AI-generated) is included as a one-line TL;DR ahead of
+ * the body so the model can skim, then drill in. The `matchedFields` +
+ * `matchDetails` are included so the model can cite specific terms back
+ * to the founder.
  */
-export function formatArtifactSearchResultForModel(result: ArtifactSearchResult): {
+export function formatArtifactSearchResultForModel(
+  result: ArtifactSearchResult,
+  bodies: Map<string, string> = new Map(),
+  maxCharsPerHit = 3_000
+): {
   summary: string
   hits: Array<{
     id: string
     title: string
     type: Artifact['type']
+    /** AI-generated 2-3 sentence summary (TL;DR). */
     summary?: string
-    snippet: string
+    /** Truncated full body. The model can call `fetch_artifact` for the rest. */
+    content: string
+    /** Length of the body before trimming. */
+    contentLength: number
+    /** True if the body was truncated to fit `maxCharsPerHit`. */
+    truncated: boolean
     matchedFields: string[]
+    matchDetails: Array<{ term: string; fields: string[]; exact: boolean }>
+    pinned?: boolean
+    updatedAt: number
     score: number
   }>
   scanned: number
@@ -366,17 +523,30 @@ export function formatArtifactSearchResultForModel(result: ArtifactSearchResult)
       scanned: result.scanned,
     }
   }
+  const broadCount = result.hits.filter((h) => h.broadRecall).length
+  const summaryBase = `Found ${result.hits.length} of ${result.scanned} saved artifact(s) for "${result.query}".`
+  const summaryNote = broadCount > 0 ? ` ${broadCount} surfaced via broad-recall (stem/prefix match).` : ''
   return {
-    summary: `Found ${result.hits.length} of ${result.scanned} saved artifact(s) for "${result.query}".`,
-    hits: result.hits.map((h) => ({
-      id: h.id,
-      title: h.title,
-      type: h.type,
-      summary: h.summary,
-      snippet: h.snippet,
-      matchedFields: h.matchedFields,
-      score: h.score,
-    })),
+    summary: summaryBase + summaryNote,
+    hits: result.hits.map((h) => {
+      const fullBody = bodies.get(h.id) ?? ''
+      const truncated = fullBody.length > maxCharsPerHit
+      const content = truncated ? fullBody.slice(0, maxCharsPerHit) : fullBody
+      return {
+        id: h.id,
+        title: h.title,
+        type: h.type,
+        summary: h.summary,
+        content,
+        contentLength: fullBody.length,
+        truncated,
+        matchedFields: h.matchedFields,
+        matchDetails: h.matchDetails || [],
+        pinned: h.pinned,
+        updatedAt: h.updatedAt,
+        score: h.score,
+      }
+    }),
     scanned: result.scanned,
   }
 }

@@ -332,3 +332,20 @@ export async function updateCompany(patch: Partial<CompanyMemory>): Promise<Comp
   await db.company.put(updated)
   return updated
 }
+
+/**
+ * Wipe the entire local database — every table, every encrypted envelope.
+ * Used by the "forgot passphrase" recovery flow on the Vault screen and by
+ * the "Delete everything" button in Settings.
+ *
+ * Caller is responsible for:
+ *   1. clearing the in-memory unlocked DEK via `lock()` from ./crypto
+ *   2. reloading the page (e.g. `location.assign('/welcome')`) so React
+ *      state, live queries, and Dexie's internal table handles all reset.
+ *      After the reload, `ensureSettings()` / `ensureCompany()` recreate
+ *      fresh rows with `hasOnboarded: false`, which routes the user back
+ *      into the Onboarding wizard (the proper first-time setup flow).
+ */
+export async function resetAllData(): Promise<void> {
+  await db.delete()
+}

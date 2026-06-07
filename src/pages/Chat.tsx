@@ -9,7 +9,7 @@ import {
   type Conversation,
 } from '@/lib/db'
 import { AGENTS } from '@/lib/agents'
-import { runChat, extractMemory } from '@/lib/chat'
+import { runChat, extractMemory, rerunMissedToolCall } from '@/lib/chat'
 import { isUnlocked } from '@/lib/crypto'
 import { type ProviderId, getModelInfo } from '@/lib/providers'
 import { useToast } from '@/components/Toast'
@@ -41,6 +41,9 @@ export function ChatPage() {
   const abortRef = useRef<AbortController | null>(null)
   /** Conversation ID the in-flight stream belongs to (null when idle) */
   const streamingConvIdRef = useRef<string | null>(null)
+  /** Abort controller for an in-flight "rerun missed call" request (separate
+   * from the chat stream abort, so a rerun can be cancelled independently) */
+  const rerunAbortRef = useRef<AbortController | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const jitter = useJitterBuffer({ charsPerSecond: 90, tickMs: 32, immediate: true })
 
@@ -374,6 +377,95 @@ export function ChatPage() {
     }
   }
 
+  /**
+   * Re-run a tool call the model wrote in prose (i.e. the synthetic "missed
+   * tool call" row). The user clicks "Run this search now" on the row and
+   * we actually invoke the tool against the configured providers. The
+   * result is dropped into `toolOverrides` keyed by the missed row's
+   * `pseudoId`, so the existing `ToolCallRow` re-renders from amber-missed
+   * to a regular Claude-style result panel.
+   *
+   * Abort support: a new AbortController is created for each rerun, so
+   * starting a fresh rerun (or starting a new chat stream) cancels the
+   * previous one.
+   */
+  const handleRerunMissedToolCall = useCallback(async (pseudoId: string, name: string, args: any, assistantMsgId?: string) => {
+    // Cancel any in-flight rerun
+    rerunAbortRef.current?.abort()
+    const ac = new AbortController()
+    rerunAbortRef.current = ac
+    // 1. Flip the row to "pending" so the user sees the spinning indicator
+    setToolOverrides((prev) => ({ ...prev, [pseudoId]: { name, args, status: 'pending' } }))
+    // Also update the stored tool call (if we have a message id) so the
+    // pending state survives a page reload
+    if (assistantMsgId) {
+      try {
+        const fresh = await db.messages.get(assistantMsgId)
+        if (fresh?.toolCalls) {
+          const calls = fresh.toolCalls.map((tc: any) =>
+            tc.toolCallId === pseudoId ? { ...tc, status: 'pending' as const, result: undefined } : tc
+          )
+          await db.messages.update(assistantMsgId, { toolCalls: calls })
+        }
+      } catch { /* best-effort */ }
+    }
+    // 2. Run the tool
+    let outcome: Awaited<ReturnType<typeof rerunMissedToolCall>>
+    try {
+      outcome = await rerunMissedToolCall({ name, args, signal: ac.signal })
+    } catch (e: any) {
+      // Aborted or unexpected throw — record the error on the row
+      const errMsg = e?.name === 'AbortError' ? 'Cancelled' : e?.message || String(e)
+      setToolOverrides((prev) => ({ ...prev, [pseudoId]: { name, args, status: 'error', result: { error: errMsg } } }))
+      if (assistantMsgId) {
+        try {
+          const fresh = await db.messages.get(assistantMsgId)
+          if (fresh?.toolCalls) {
+            const calls = fresh.toolCalls.map((tc: any) =>
+              tc.toolCallId === pseudoId ? { ...tc, status: 'error' as const, result: { error: errMsg } } : tc
+            )
+            await db.messages.update(assistantMsgId, { toolCalls: calls })
+          }
+        } catch { /* best-effort */ }
+      }
+      return
+    }
+    // 3. Drop the result into the override. Crucially, the new result does
+    // NOT have `missed: true`, so `isMissed` in `ToolCallRow` becomes false
+    // and the body renders the Claude-style result component instead of the
+    // amber missed-call box.
+    setToolOverrides((prev) => ({ ...prev, [pseudoId]: { name: outcome.name, args, status: outcome.status, result: outcome.result } }))
+    if (assistantMsgId) {
+      try {
+        const fresh = await db.messages.get(assistantMsgId)
+        if (fresh?.toolCalls) {
+          const calls = fresh.toolCalls.map((tc: any) =>
+            tc.toolCallId === pseudoId
+              ? { ...tc, name: outcome.name, status: outcome.status, result: outcome.result, args }
+              : tc
+          )
+          await db.messages.update(assistantMsgId, { toolCalls: calls })
+        }
+      } catch { /* best-effort */ }
+    }
+    // 4. Toast the outcome
+    if (outcome.status === 'ok') {
+      const okResult = outcome.result as any
+      if (name === 'web_search') {
+        toast.info('Search complete', `${okResult.count ?? 0} result${okResult.count === 1 ? '' : 's'} from ${okResult.source}`)
+      } else if (name === 'fetch_url') {
+        toast.info('Page read', `${(okResult.byteLength / 1000).toFixed(1)}k chars`)
+      } else if (name === 'search_artifacts') {
+        toast.info('Library search', `${okResult.fullHits?.length ?? okResult.hits?.length ?? 0} match${(okResult.fullHits?.length ?? okResult.hits?.length ?? 0) === 1 ? '' : 'es'}`)
+      } else if (name === 'fetch_artifact') {
+        toast.info('Artifact read', okResult.title || okResult.id)
+      }
+    } else {
+      const errMsg = (outcome.result as any)?.error || 'Tool failed'
+      toast.error('Rerun failed', errMsg)
+    }
+  }, [toast])
+
   if (!settings) return null
   const activeProviderId = (settings.defaultProvider as ProviderId) || 'browser-ai'
 
@@ -399,6 +491,7 @@ export function ChatPage() {
         verbList={settings.verbLists[activeAgent]}
         activeAgent={activeAgent}
         endRef={messagesEndRef}
+        onRerunMissedToolCall={handleRerunMissedToolCall}
       />
 
       <ChatComposer
