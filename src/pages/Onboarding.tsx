@@ -802,4 +802,53 @@ function ReadyStep({ onDone }: { onDone: () => void }) {
       >
         {idea
           ? 'It already knows what you’re building. Everything you tell it from here, it remembers — for good.'
-          : 
+          : 'Your AI cofounder is waiting. Let’s build something.'}
+      </motion.p>
+
+      {/* What it now remembers — the founder's own words, echoed back. */}
+      {recap.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.36, duration: 0.34, ease: [0.16, 1, 0.3, 1] }}
+          className="mx-auto mt-6 max-w-sm rounded-2xl border border-border bg-bg-subtle/50 p-4 text-left"
+        >
+          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-accent">In my memory</div>
+          <dl className="mt-2.5 space-y-2">
+            {recap.map((r) => (
+              <div key={r.label} className="flex gap-3 text-sm">
+                <dt className="w-14 flex-shrink-0 pt-px text-[11px] uppercase tracking-wider text-fg-subtle">{r.label}</dt>
+                <dd className="line-clamp-2 flex-1 text-fg">{r.value}</dd>
+              </div>
+            ))}
+          </dl>
+        </motion.div>
+      )}
+
+      <motion.div
+        initial={{ opacity: 0, scale: 0.85 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ delay: 0.48, type: 'spring', stiffness: 260, damping: 18 }}
+        className="mt-8 flex justify-center"
+      >
+        <motion.button
+          onClick={onDone}
+          whileTap={{ scale: 0.94 }}
+          whileHover={{ scale: 1.04 }}
+          // Persistent pulse draws the eye to the CTA
+          animate={{
+            boxShadow: [
+              '0 0 0 0 hsl(var(--accent)/0)',
+              '0 0 0 10px hsl(var(--accent)/0.18)',
+              '0 0 0 0 hsl(var(--accent)/0)',
+            ],
+          }}
+          transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
+          className="inline-flex items-center gap-2 rounded-2xl bg-accent px-7 py-3.5 text-sm font-semibold text-accent-fg focus-ring"
+        >
+          {idea ? 'Meet your cofounder' : 'Open the chat'} 🚀
+        </motion.button>
+      </motion.div>
+    </div>
+  )
+}
