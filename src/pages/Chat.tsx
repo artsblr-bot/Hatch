@@ -135,11 +135,6 @@ export function ChatPage() {
     [conversationId]
   ) || []
 
-  const conversation: Conversation | undefined = useLiveQuery(
-    () => (conversationId ? db.conversations.get(conversationId) : Promise.resolve(undefined)),
-    [conversationId]
-  ) as Conversation | undefined
-
   // Scroll to bottom on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
