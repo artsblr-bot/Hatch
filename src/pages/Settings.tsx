@@ -6,9 +6,10 @@ import { encrypt, getUnlockedKey, isUnlocked, lock } from '@/lib/crypto'
 import type { EncryptedEnvelope } from '@/lib/db'
 import { useToast } from '@/components/Toast'
 import { useNavigate } from 'react-router-dom'
-import { Check, X, Eye, EyeOff, ExternalLink, Cpu, Lock, Unlock, Trash2, AlertTriangle, Download, Sun, Moon, Monitor, Globe, Loader2 } from 'lucide-react'
+import { Check, X, Eye, EyeOff, ExternalLink, Cpu, Lock, Unlock, Trash2, AlertTriangle, Download, Sun, Moon, Monitor, Globe, Loader2, Volume2, Vibrate, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { AGENTS } from '@/lib/agents'
+import { DEFAULT_JUICE, haptic, playSound, setJuicePrefs } from '@/lib/juice'
 
 export function SettingsPage() {
   const settings = useLiveQuery(() => db.settings.get('singleton'), [])
@@ -22,7 +23,9 @@ export function SettingsPage() {
   }, [])
 
   useEffect(() => {
-    if (settings) detectBrowserAI().then(setBrowserAI)
+    let alive = true
+    if (settings) detectBrowserAI().then((r) => { if (alive) setBrowserAI(r) })
+    return () => { alive = false }
   }, [settings?.defaultProvider])
 
   if (!settings) return null
@@ -190,6 +193,71 @@ export function SettingsPage() {
           </div>
         </Section>
 
+        <Section title="Feel" description="How much feedback Hatch gives you. Sound is synthesized in the browser — no files, works offline.">
+          <div className="space-y-2">
+            <ToggleRow
+              icon={Volume2}
+              label="Sound effects"
+              hint="Soft cues on wins and completions"
+              on={(settings.juice ?? DEFAULT_JUICE).sound}
+              onToggle={() => {
+                const j = settings.juice ?? DEFAULT_JUICE
+                const next = { ...j, sound: !j.sound }
+                setJuicePrefs(next)
+                if (next.sound) playSound('celebrate')
+                updateSettings({ juice: next })
+              }}
+            />
+            <ToggleRow
+              icon={Vibrate}
+              label="Haptics"
+              hint="Subtle vibration on supported devices"
+              on={(settings.juice ?? DEFAULT_JUICE).haptics}
+              onToggle={() => {
+                const j = settings.juice ?? DEFAULT_JUICE
+                const next = { ...j, haptics: !j.haptics }
+                setJuicePrefs(next)
+                if (next.haptics) haptic('success')
+                updateSettings({ juice: next })
+              }}
+            />
+          </div>
+          <div className="mt-3">
+            <div className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-fg-muted">
+              <Sparkles className="h-3.5 w-3.5" /> Motion
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { id: 'auto', label: 'Auto', hint: 'Follow your system setting' },
+                { id: 'off', label: 'Full', hint: 'All animations' },
+                { id: 'on', label: 'Reduced', hint: 'Minimal motion' },
+              ].map((m) => {
+                const cur = (settings.juice ?? DEFAULT_JUICE).reducedMotion
+                return (
+                  <button
+                    key={m.id}
+                    title={m.hint}
+                    onClick={() => {
+                      const j = settings.juice ?? DEFAULT_JUICE
+                      const next = { ...j, reducedMotion: m.id as 'auto' | 'on' | 'off' }
+                      setJuicePrefs(next)
+                      updateSettings({ juice: next })
+                    }}
+                    className={cn(
+                      'rounded-xl border p-2.5 text-xs transition focus-ring',
+                      cur === m.id
+                        ? 'border-accent/40 bg-accent/10'
+                        : 'border-border bg-bg-subtle/30 hover:bg-bg-muted'
+                    )}
+                  >
+                    {m.label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </Section>
+
         {/* Danger zone */}
         <Section title="Data" description="Export or delete everything you've stored in Hatch.">
           <div className="flex flex-wrap gap-2">
@@ -251,6 +319,40 @@ function Section({ title, description, children }: { title: string; description?
       {description && <p className="mt-0.5 text-sm text-fg-muted">{description}</p>}
       <div className="mt-4">{children}</div>
     </section>
+  )
+}
+
+function ToggleRow({
+  icon: Icon,
+  label,
+  hint,
+  on,
+  onToggle,
+}: {
+  icon: any
+  label: string
+  hint?: string
+  on: boolean
+  onToggle: () => void
+}) {
+  return (
+    <button
+      onClick={onToggle}
+      role="switch"
+      aria-checked={on}
+      className="flex w-full items-center gap-3 rounded-xl border border-border bg-bg-subtle/30 p-3 text-left transition hover:bg-bg-muted focus-ring"
+    >
+      <div className={cn('grid h-8 w-8 flex-shrink-0 place-items-center rounded-lg', on ? 'bg-accent/15 text-accent' : 'bg-bg-muted text-fg-subtle')}>
+        <Icon className="h-4 w-4" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-medium">{label}</div>
+        {hint && <div className="text-xs text-fg-muted">{hint}</div>}
+      </div>
+      <div className={cn('relative h-5 w-9 flex-shrink-0 rounded-full transition-colors', on ? 'bg-accent' : 'bg-bg-muted')}>
+        <span className={cn('absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all', on ? 'left-[18px]' : 'left-0.5')} />
+      </div>
+    </button>
   )
 }
 

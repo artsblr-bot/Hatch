@@ -35,7 +35,7 @@ export function CountUp({ value, duration = 900, className, format, trigger = 'm
     }
     raf.current = requestAnimationFrame(step)
     return () => {
-      if (raf.current) cancelAnimationFrame(raf.current)
+      if (raf.current != null) cancelAnimationFrame(raf.current)
     }
   }, [value, duration, trigger])
 

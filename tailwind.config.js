@@ -87,13 +87,13 @@ export default {
           '100%': { transform: 'translateX(100%) scaleX(0.5)' },
         },
         'orb-breathe': {
-          '0%, 100%': { transform: 'scale(1)', boxShadow: '0 0 24px hsl(21 100% 55% / 0.18)' },
-          '50%':       { transform: 'scale(1.07)', boxShadow: '0 0 40px hsl(21 100% 55% / 0.32)' },
+          '0%, 100%': { transform: 'scale(1)', boxShadow: '0 0 24px hsl(35 92% 60% / 0.20)' },
+          '50%':       { transform: 'scale(1.07)', boxShadow: '0 0 44px hsl(35 92% 60% / 0.36)' },
         },
         'done-glow': {
-          '0%':   { boxShadow: '0 0 0 0 hsl(21 100% 55% / 0)' },
-          '25%':  { boxShadow: '0 0 0 4px hsl(21 100% 55% / 0.18)' },
-          '100%': { boxShadow: '0 0 0 0 hsl(21 100% 55% / 0)' },
+          '0%':   { boxShadow: '0 0 0 0 hsl(35 92% 60% / 0)' },
+          '25%':  { boxShadow: '0 0 0 4px hsl(35 92% 60% / 0.20)' },
+          '100%': { boxShadow: '0 0 0 0 hsl(35 92% 60% / 0)' },
         },
         'check-pop': {
           '0%':  { transform: 'scale(0) rotate(-20deg)', opacity: '0' },

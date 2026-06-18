@@ -12,15 +12,19 @@ interface Props {
 /**
  * The Hatch logomark — a square crossbar H on a 100×100 tile.
  *
- * - variant="orange" (default): orange tile + black H. For dark contexts.
- * - variant="black": black tile + orange H. For light contexts.
+ * "First Light" palette: a warm "yolk" amber + warm ink (not cold black).
+ * - variant="orange" (default): amber tile + ink H. For dark contexts.
+ * - variant="black": ink tile + amber H. For light contexts.
+ * (Variant names are kept for API stability; the colors are the warm brand.)
  *
  * Stems are 15px wide (~15% of tile), crossbar is 15×15px and centered.
  * This matches the brand spec (11/72 ≈ 15.3%).
  */
 export function HatchMark({ variant = 'orange', size = 32, className, title }: Props) {
-  const tileColor = variant === 'orange' ? '#FF6B1A' : '#0E0E0E'
-  const markColor = variant === 'orange' ? '#0E0E0E' : '#FF6B1A'
+  const amber = '#F2A33C'
+  const ink = '#1A1410'
+  const tileColor = variant === 'orange' ? amber : ink
+  const markColor = variant === 'orange' ? ink : amber
 
   return (
     <svg

@@ -15,6 +15,7 @@ import {
 import { db, type CheckIn } from '@/lib/db'
 import { weekStart, weekEnd, tasksThisWeek, carryOverIncomplete } from '@/lib/tasks'
 import { useToast } from './Toast'
+import { useCelebrate } from './Celebration'
 import { cn } from '@/lib/utils'
 
 type Step = 'shipped' | 'blockers' | 'next' | 'debrief'
@@ -39,6 +40,7 @@ export function EndWeekDialog({
   onClose: () => void
 }) {
   const toast = useToast()
+  const { burst: fireBurst } = useCelebrate()
   const navigate = useNavigate()
   const [step, setStep] = useState<Step>('shipped')
   const [shipped, setShipped] = useState<string[]>([])
@@ -119,6 +121,8 @@ export function EndWeekDialog({
         const count = await carryOverIncomplete(ws, weekStart(new Date(weekEnd(ws))))
         if (count > 0) toast.info(`Carried over ${count} open task${count === 1 ? '' : 's'} to next week`)
       }
+      // Peak-end: the week is closed — reward the ritual right as it completes.
+      fireBurst('big')
       setStep('debrief')
     } catch (e: any) {
       toast.error('Could not save check-in', e?.message)

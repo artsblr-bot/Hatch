@@ -176,8 +176,16 @@ export function AppShell() {
         />
       )}
 
-      {/* Main */}
-      <main className="relative flex h-full min-w-0 flex-col overflow-hidden">
+      {/* Main. Dual-surface: the Chat route is always the warm-dark
+          "workspace" (scoped `.dark` + opaque bg), even when the rest of the
+          app is in cream mode — the cream-shell ↔ dark-workspace pacing. Other
+          routes stay transparent so the ambient aurora reads through. */}
+      <main
+        className={cn(
+          'relative flex h-full min-w-0 flex-col overflow-hidden',
+          location.pathname.startsWith('/chat') && 'dark bg-bg'
+        )}
+      >
         <Outlet />
       </main>
     </div>

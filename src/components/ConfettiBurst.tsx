@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 interface Props {
@@ -23,13 +23,15 @@ interface Particle {
   duration: number
 }
 
+// Warm-biased, celebratory palette anchored on the yolk amber, with a couple
+// of cool notes so the burst still pops.
 const COLORS = [
-  'hsl(21 100% 55%)',
-  'hsl(38 92% 55%)',
-  'hsl(174 60% 50%)',
-  'hsl(217 91% 65%)',
-  'hsl(322 81% 65%)',
-  'hsl(142 71% 50%)',
+  'hsl(35 92% 60%)',
+  'hsl(45 90% 62%)',
+  'hsl(15 82% 60%)',
+  'hsl(340 70% 64%)',
+  'hsl(174 60% 52%)',
+  'hsl(146 60% 52%)',
 ]
 
 /**
@@ -40,6 +42,11 @@ const COLORS = [
  */
 export function ConfettiBurst({ active, count = 26, onDone }: Props) {
   const [particles, setParticles] = useState<Particle[]>([])
+  // Read onDone via a ref so an inline (non-memoized) callback from the parent
+  // doesn't re-trigger the burst — otherwise every parent re-render while
+  // `active` is true regenerates the particles and resets the done timer.
+  const onDoneRef = useRef(onDone)
+  onDoneRef.current = onDone
 
   useEffect(() => {
     if (!active) {
@@ -62,10 +69,10 @@ export function ConfettiBurst({ active, count = 26, onDone }: Props) {
     })
     setParticles(ps)
     const t = setTimeout(() => {
-      onDone?.()
+      onDoneRef.current?.()
     }, 1300)
     return () => clearTimeout(t)
-  }, [active, count, onDone])
+  }, [active, count])
 
   return (
     <div className="pointer-events-none absolute inset-0 z-20 grid place-items-center overflow-visible">

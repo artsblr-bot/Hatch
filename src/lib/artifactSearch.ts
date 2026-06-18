@@ -350,7 +350,7 @@ export async function searchArtifacts(opts: ArtifactSearchOptions): Promise<Arti
         title: a.title,
         type: a.type,
         summary: a.summary,
-        snippet: a.content.slice(0, 200).replace(/\s+/g, ' ').trim(),
+        snippet: (a.content || '').slice(0, 200).replace(/\s+/g, ' ').trim(),
         score: 0,
         matchedFields: [],
         updatedAt: a.updatedAt,

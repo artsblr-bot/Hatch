@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Check, X as XIcon, MoreHorizontal, Pencil, Calendar, Trash2 } from 'lucide-react'
 import { cn, relativeTime } from '@/lib/utils'
 import { useToast } from './Toast'
-import { completeTask, dropTask, reopenTask, deleteTasks, dueLabel, sourceLabel, addTask } from '@/lib/tasks'
+import { completeTask, dropTask, reopenTask, deleteTasks, dueLabel, sourceLabel, renameTask } from '@/lib/tasks'
+import { haptic, playSound } from '@/lib/juice'
 import type { Task } from '@/lib/db'
 
 interface Props {
@@ -51,6 +52,8 @@ export function TaskCard({ task, compact, onChange }: Props) {
 
   const onComplete = async () => {
     if (busy) return
+    haptic('success')
+    playSound('complete')
     setBusy(true)
     try {
       await completeTask(task.id)
@@ -103,20 +106,10 @@ export function TaskCard({ task, compact, onChange }: Props) {
     if (!next || next === task.title) return
     setBusy(true)
     try {
-      // Re-create with the new title to keep it simple (no separate edit fn).
-      await deleteTasks([task.id])
-      await addTask({
-        title: next,
-        source: task.source,
-        sourceId: task.sourceId,
-        conversationId: task.conversationId,
-        artifactId: task.artifactId,
-        messageId: task.messageId,
-        dueAt: task.dueAt,
-        weekOf: task.weekOf,
-        notes: task.notes,
-        proposedStrategy: task.proposedStrategy,
-      })
+      // Rename in place — preserves the id, status, and timestamps. (The old
+      // delete+recreate approach reset done/dropped tasks back to open, wiped
+      // completedAt, and broke any links keyed off the task id.)
+      await renameTask(task.id, next)
       onChange?.()
     } finally {
       setBusy(false)

@@ -1222,7 +1222,12 @@ export async function runChat(req: ChatRequest, cb: StreamCallbacks): Promise<st
     // that imitate the pattern), lift them out so the chat content stays clean
     // and we can still surface the reasoning to the UI.
     let cleanedText = finalText || fullText
-    if (!supportsReasoning) {
+    // Strip inline <think> blocks whenever no native reasoning was streamed.
+    // Some models flagged reasoning-capable (e.g. R1 distills on Groq/NVIDIA)
+    // don't expose native reasoning deltas and instead emit <think>...</think>
+    // in the text stream — gating on the capability flag would leak that raw
+    // CoT into the answer, so gate on whether reasoning actually arrived.
+    if (!fullReasoning) {
       const thinkRegex = /<think>([\s\S]*?)(?:<\/think>|$)/g
       const matches = [...cleanedText.matchAll(thinkRegex)]
       if (matches.length > 0) {
@@ -1470,10 +1475,18 @@ export async function compactMemory(
       })
       .join('\n')
 
+    // Fold the new nodes into the existing digest rather than replacing it —
+    // otherwise each compaction discards everything summarized before it and
+    // the long-term memory steadily forgets older context.
+    const prev = await getMemoryDigest()
+    const prompt = prev?.content
+      ? `Existing digest:\n\n${prev.content}\n\n---\n\nNew memory nodes to fold in:\n\n${nodeList}\n\nRewrite a single combined prose digest.`
+      : `Memory nodes to compact:\n\n${nodeList}\n\nWrite the prose digest.`
+
     const result = await streamText({
       model: lm,
       system: COMPACT_SYSTEM,
-      prompt: `Memory nodes to compact:\n\n${nodeList}\n\nWrite the prose digest.`,
+      prompt,
       abortSignal: signal,
     })
     const digest = await result.text
@@ -1481,7 +1494,7 @@ export async function compactMemory(
 
     // Mark all processed nodes as compacted and save the new digest
     await Promise.all(uncompacted.map((n) => db.memoryNodes.update(n.id, { compacted: true })))
-    await updateMemoryDigest(digest.trim(), uncompacted.length)
+    await updateMemoryDigest(digest.trim(), (prev?.nodeCount ?? 0) + uncompacted.length)
     return digest.trim()
   } catch (e) {
     console.warn('[memory] compaction failed:', e)

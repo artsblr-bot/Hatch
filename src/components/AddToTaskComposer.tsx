@@ -36,7 +36,16 @@ export function AddToTaskComposer({
   const [saving, setSaving] = useState(false)
   const [done, setDone] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  const doneTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const toast = useToast()
+
+  // Clear the post-submit reset timer if the popover unmounts first (it lives
+  // inside per-message hover UI that can disappear before 800ms elapses).
+  useEffect(() => {
+    return () => {
+      if (doneTimerRef.current) clearTimeout(doneTimerRef.current)
+    }
+  }, [])
 
   useEffect(() => {
     if (open && inputRef.current) {
@@ -44,9 +53,12 @@ export function AddToTaskComposer({
     }
   }, [open])
 
+  // Seed the input from the prefill once per open. (Keeping `text` in the deps
+  // with a `!text` guard re-inserted the prefill the instant the user cleared
+  // the field, making it impossible to type from empty.)
   useEffect(() => {
-    if (prefill && open && !text) setText(prefill)
-  }, [prefill, open, text])
+    if (prefill && open) setText(prefill)
+  }, [prefill, open])
 
   const submit = async () => {
     const t = text.trim()
@@ -61,7 +73,7 @@ export function AddToTaskComposer({
       })
       setDone(true)
       onCreated?.(created.id)
-      setTimeout(() => {
+      doneTimerRef.current = setTimeout(() => {
         setDone(false)
         setOpen(false)
         setText('')

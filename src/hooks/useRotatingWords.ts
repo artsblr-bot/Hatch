@@ -59,6 +59,10 @@ export function useRotatingWord(opts: { words: readonly string[]; intervalMs?: n
       })
     }, intervalMs)
     return () => clearInterval(id)
-  }, [enabled, words, intervalMs])
+    // Depend on a stable join, not the array identity — callers pass inline
+    // literals, so `words` is a new reference every render and would otherwise
+    // restart the interval before it ever fires.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, words.join('|'), intervalMs])
   return word
 }

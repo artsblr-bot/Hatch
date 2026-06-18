@@ -271,20 +271,20 @@ function formatCompanyMemory(c: CompanyMemory): string {
   if (c.stage && c.stage !== 'idea') parts.push(`Stage: ${c.stage}`)
   if (c.goal90d) parts.push(`90-day goal: ${c.goal90d}`)
   if (c.goal1y) parts.push(`1-year goal: ${c.goal1y}`)
-  if (c.blockers.length) parts.push(`Current blockers: ${c.blockers.join('; ')}`)
-  if (c.decisions.length) {
+  if (c.blockers?.length) parts.push(`Current blockers: ${c.blockers.join('; ')}`)
+  if (c.decisions?.length) {
     parts.push(`Recent decisions:\n${c.decisions
       .slice(-5)
       .map((d) => `  - [${new Date(d.ts).toLocaleDateString()}] ${d.decision}${d.rationale ? ` (because: ${d.rationale})` : ''}`)
       .join('\n')}`)
   }
-  if (c.metrics.length) {
+  if (c.metrics?.length) {
     parts.push(`Metrics:\n${c.metrics
       .slice(-10)
       .map((m) => `  - ${m.name}: ${m.value}`)
       .join('\n')}`)
   }
-  if (c.openQuestions.length) {
+  if (c.openQuestions?.length) {
     const open = c.openQuestions.filter((q) => q.status === 'open').slice(-5)
     if (open.length) {
       parts.push(`Open questions:\n${open.map((q) => `  - ${q.q}`).join('\n')}`)

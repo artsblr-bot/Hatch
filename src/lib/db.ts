@@ -35,6 +35,16 @@ export interface Settings {
   // First-run flag
   hasOnboarded: boolean
   hasSetPassphrase: boolean
+  // "Feel" preferences — feedback intensity. All optional + default-safe so
+  // existing rows keep working without a migration (read via getJuicePrefs).
+  juice?: {
+    sound: boolean
+    haptics: boolean
+    reducedMotion: 'auto' | 'on' | 'off'
+  }
+  // Milestone ids the user has already been celebrated for, so each fires at
+  // most once. Seeded silently for pre-existing users (see useMilestones).
+  achievements?: string[]
   // Created/updated
   createdAt: number
   updatedAt: number
@@ -312,6 +322,13 @@ class HatchDB extends Dexie {
       memoryNodes: 'id, type, createdAt, sourceConversationId',
       founderProfile: 'id',
       memoryDigest: 'id',
+    })
+    // v4: index `messages.role`. The chat page queries
+    // db.messages.where('role').equals('user') for the user-message count and
+    // personality inference; without the index Dexie throws "KeyPath role on
+    // object store messages is not indexed" and the whole page crashes.
+    this.version(4).stores({
+      messages: 'id, conversationId, createdAt, role',
     })
   }
 }

@@ -46,7 +46,7 @@ export function Library() {
   }, [artifacts])
 
   const open = artifacts.find((a) => a.id === openId)
-  const template = open ? ARTIFACT_TEMPLATES[open.type] : null
+  const template = open ? ARTIFACT_TEMPLATES[open.type] ?? ARTIFACT_TEMPLATES.custom : null
 
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this artifact?')) return
@@ -239,7 +239,7 @@ export function Library() {
           ) : (
             <div className="flex flex-col gap-1">
               {filtered.map((a, i) => {
-                const t = ARTIFACT_TEMPLATES[a.type]
+                const t = ARTIFACT_TEMPLATES[a.type] ?? ARTIFACT_TEMPLATES.custom
                 return (
                   <motion.button
                     key={a.id}

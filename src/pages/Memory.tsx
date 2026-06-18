@@ -29,25 +29,30 @@ export function Memory() {
   const [isDirty, setIsDirty] = useState(false)
   const [saving, setSaving] = useState(false)
   const [newBlocker, setNewBlocker] = useState('')
-  const [activeTab, setActiveTab] = useState<TabId>('memory')
   const [searchParams, setSearchParams] = useSearchParams()
   const toast = useToast()
 
-  // Honor ?tab=... deep link. We keep the param in sync when the user
-  // switches tabs manually so the URL stays a shareable view of the page.
-  useEffect(() => {
-    const t = searchParams.get('tab')
-    const VALID: TabId[] = ['memory', 'profile', 'archive', 'digest', 'checkins']
-    if (t && VALID.includes(t as TabId) && t !== activeTab) setActiveTab(t as TabId)
-  }, [searchParams])
-  useEffect(() => {
-    const current = searchParams.get('tab') || 'memory'
-    if (current !== activeTab) {
-      const next = new URLSearchParams(searchParams)
-      next.set('tab', activeTab)
-      setSearchParams(next, { replace: true })
-    }
-  }, [activeTab])
+  // Derive the active tab straight from the URL so deep links (?tab=...) and
+  // manual tab switches share one source of truth. (Mirroring the param into
+  // separate state with two effects caused an infinite render loop on any deep
+  // link where tab !== 'memory', because the effects clobbered each other.)
+  const VALID_TABS: TabId[] = ['memory', 'profile', 'archive', 'digest', 'checkins']
+  const tabParam = searchParams.get('tab')
+  const activeTab: TabId =
+    tabParam && VALID_TABS.includes(tabParam as TabId) ? (tabParam as TabId) : 'memory'
+  const setActiveTab = useCallback(
+    (tab: TabId) => {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev)
+          next.set('tab', tab)
+          return next
+        },
+        { replace: true }
+      )
+    },
+    [setSearchParams]
+  )
 
   // Initial load: copy company into draft once
   useEffect(() => {

@@ -44,6 +44,9 @@ export function CheckInsList() {
   const isFriday = new Date().getDay() === 5
   const isWeekend = [0, 6].includes(new Date().getDay())
   const streak = calcCheckInStreak(checkIns)
+  // Loss aversion: once it's late in the week and you haven't checked in, the
+  // streak is on the line — surface that to nudge the close-out.
+  const streakAtRisk = streak > 0 && !alreadyThisWeek && (isFriday || isWeekend)
 
   return (
     <div className="space-y-6">
@@ -62,10 +65,22 @@ export function CheckInsList() {
               initial={{ opacity: 0, scale: 0.85 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ type: 'spring', stiffness: 380, damping: 20, delay: 0.1 }}
-              className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-accent/25 bg-accent/[0.08] px-3 py-1 text-xs font-semibold text-accent"
+              className={cn(
+                'mt-3 inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold',
+                streakAtRisk
+                  ? 'border-amber-500/40 bg-amber-500/[0.1] text-amber-600 dark:text-amber-400'
+                  : 'border-accent/25 bg-accent/[0.08] text-accent'
+              )}
             >
-              <Flame className="h-3 w-3" />
+              <motion.span
+                animate={{ scale: [1, 1.18, 1], rotate: [0, -6, 6, 0] }}
+                transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
+                className="inline-flex"
+              >
+                <Flame className="h-3 w-3" />
+              </motion.span>
               {streak}-week streak
+              {streakAtRisk && <span className="font-medium opacity-80">· keep it alive</span>}
             </motion.div>
           )}
         </div>

@@ -3,52 +3,63 @@
 @tailwind utilities;
 
 @layer base {
+  /* ---------------------------------------------------------------------
+   * "First Light" — a warm, editorial token system for Hatch.
+   * Light mode = shell-paper cream (the marketing/editorial surfaces).
+   * Dark mode  = warm espresso (the Chat "workspace"; see AppShell dual-surface).
+   * Accent is a warm "yolk" amber — buttons fill amber with ink text, which
+   * reads as premium and stays legible on the cream canvas. The neon orange
+   * (21 100% 55%) that read as a generic "dark + bright accent" default is gone.
+   * ------------------------------------------------------------------- */
   :root {
-    --bg: 0 0% 100%;
-    --bg-subtle: 0 0% 98%;
-    --bg-muted: 0 0% 96%;
-    --fg: 0 0% 5%;
-    --fg-muted: 0 0% 35%;
-    --fg-subtle: 0 0% 55%;
-    --border: 0 0% 90%;
-    --border-subtle: 0 0% 94%;
-    --accent: 21 100% 55%;
-    --accent-fg: 0 0% 100%;
-    --ring: 21 100% 55%;
-    --brand-orange: 21 100% 55%;
-    --brand-orange-pressed: 22 90% 47%;
-    --brand-black: 0 0% 5%;
-    --success: 142 71% 45%;
-    --warning: 38 92% 50%;
-    --danger: 0 84% 60%;
-    --agent-mentor: 174 60% 40%;
-    --agent-cto: 217 91% 60%;
-    --agent-cmo: 322 81% 60%;
-    --agent-cfo: 142 71% 45%;
+    --bg: 38 52% 96%;          /* shell paper #FBF7F0 */
+    --bg-subtle: 38 44% 93%;
+    --bg-muted: 38 36% 88%;
+    --fg: 28 22% 11%;          /* warm ink #211C17 */
+    --fg-muted: 30 13% 32%;
+    --fg-subtle: 30 12% 40%;   /* legible (~4.6:1) yet clearly secondary */
+    --border: 38 30% 84%;
+    --border-subtle: 40 34% 90%;
+    /* Ember amber: deep enough to read as a label/link on cream, rich as a
+       button fill. Ink text on the fill clears AA (~4.8:1) — same premium
+       ink-on-amber pairing dark mode uses. The brighter "yolk" lives in dark. */
+    --accent: 30 82% 48%;
+    --accent-fg: 28 32% 12%;   /* ink on the ember fill */
+    --ring: 30 82% 45%;
+    --brand-orange: 30 82% 48%;
+    --brand-orange-pressed: 27 82% 42%;
+    --brand-black: 28 22% 11%;
+    --success: 146 55% 33%;
+    --warning: 33 90% 38%;
+    --danger: 6 72% 47%;
+    --agent-mentor: 174 52% 36%;
+    --agent-cto: 217 70% 52%;
+    --agent-cmo: 322 58% 54%;
+    --agent-cfo: 146 52% 40%;
   }
 
   .dark {
-    --bg: 0 0% 4%;
-    --bg-subtle: 0 0% 7%;
-    --bg-muted: 0 0% 10%;
-    --fg: 0 0% 98%;
-    --fg-muted: 0 0% 65%;
-    --fg-subtle: 0 0% 50%;
-    --border: 0 0% 14%;
-    --border-subtle: 0 0% 10%;
-    --accent: 21 100% 55%;
-    --accent-fg: 0 0% 6%;
-    --ring: 21 100% 55%;
-    --brand-orange: 21 100% 55%;
-    --brand-orange-pressed: 22 90% 47%;
-    --brand-black: 0 0% 5%;
-    --success: 142 71% 50%;
-    --warning: 38 92% 55%;
-    --danger: 0 84% 65%;
-    --agent-mentor: 174 65% 55%;
-    --agent-cto: 217 91% 68%;
-    --agent-cmo: 322 81% 70%;
-    --agent-cfo: 142 71% 55%;
+    --bg: 28 24% 7%;           /* warm espresso #17120E */
+    --bg-subtle: 28 22% 10%;
+    --bg-muted: 28 20% 14%;
+    --fg: 36 33% 92%;          /* warm cream text #F3ECE2 */
+    --fg-muted: 34 16% 66%;
+    --fg-subtle: 34 12% 50%;
+    --border: 32 20% 17%;
+    --border-subtle: 30 22% 12%;
+    --accent: 35 92% 60%;      /* yolk amber, a touch brighter on dark */
+    --accent-fg: 28 32% 10%;   /* ink on amber */
+    --ring: 35 92% 60%;
+    --brand-orange: 35 92% 60%;
+    --brand-orange-pressed: 28 84% 50%;
+    --brand-black: 28 24% 7%;
+    --success: 146 60% 52%;
+    --warning: 38 90% 58%;
+    --danger: 6 78% 64%;
+    --agent-mentor: 174 60% 56%;
+    --agent-cto: 217 80% 68%;
+    --agent-cmo: 322 70% 70%;
+    --agent-cfo: 146 58% 56%;
   }
 
   * {
@@ -234,7 +245,7 @@
       90deg,
       hsl(var(--fg)) 0%,
       hsl(var(--fg)) 35%,
-      hsl(21, 100%, 65%) 50%,
+      hsl(35, 92%, 58%) 50%,
       hsl(var(--fg)) 65%,
       hsl(var(--fg)) 100%
     );

@@ -413,6 +413,11 @@ export function ChatPage() {
   const welcomeSentRef = useRef(false)
   useEffect(() => {
     if (welcomeSentRef.current) return
+    // A prefill send (from a Landing quick-prompt) is already creating the
+    // first conversation; injecting a welcome here would race it and spawn a
+    // second conversation, since handleSend's setIsStreaming hasn't committed
+    // yet when this effect runs.
+    if (prefillSentRef.current) return
     if (!settings || !company || totalConversationCount === undefined) return
     if (totalConversationCount !== 0) return
     if (isStreaming) return

@@ -14,10 +14,17 @@ import { SettingsPage } from './pages/Settings'
 import { Onboarding } from './pages/Onboarding'
 import { Vault } from './pages/Vault'
 import { AppShell } from './components/AppShell'
+import { CelebrationProvider } from './components/Celebration'
+import { MilestoneWatcher } from './components/MilestoneWatcher'
+import { setJuicePrefs } from './lib/juice'
 
 function App() {
   const settings = useLiveQuery(() => db.settings.get('singleton'), [])
-  const hasPassphrase = useLiveQuery(() => db.passphraseWrap.get('singleton'), [])
+  // `?? null` distinguishes "still loading" (undefined) from "no passphrase
+  // set" (null) — both are otherwise undefined, which would either flash
+  // protected routes before the lock check or trap a no-passphrase user on the
+  // boot screen forever.
+  const hasPassphrase = useLiveQuery(() => db.passphraseWrap.get('singleton').then((r) => r ?? null), [])
   const [ready, setReady] = useState(false)
   const [unlocked, setUnlocked] = useState(isUnlocked())
   const location = useLocation()
@@ -36,6 +43,12 @@ function App() {
     return () => clearInterval(id)
   }, [])
 
+  // Mirror the user's "feel" preferences into the imperative juice layer so
+  // haptics/sound/reduced-motion are available synchronously in hot paths.
+  useEffect(() => {
+    if (settings?.juice) setJuicePrefs(settings.juice)
+  }, [settings?.juice?.sound, settings?.juice?.haptics, settings?.juice?.reducedMotion])
+
   // Apply theme
   useEffect(() => {
     if (!settings) return
@@ -51,7 +64,7 @@ function App() {
     }
   }, [settings?.theme])
 
-  if (!ready || !settings) {
+  if (!ready || !settings || hasPassphrase === undefined) {
     return <BootScreen />
   }
 
@@ -69,19 +82,22 @@ function App() {
 
   return (
     <ToastProvider>
-      <Routes>
-        <Route path="/welcome" element={<Onboarding />} />
-        <Route path="/vault" element={<Vault />} />
-        <Route element={<AppShell />}>
-          <Route path="/" element={<Landing />} />
-          <Route path="/chat" element={<ChatPage />} />
-          <Route path="/chat/:conversationId" element={<ChatPage />} />
-          <Route path="/library" element={<Library />} />
-          <Route path="/memory" element={<Memory />} />
-          <Route path="/settings" element={<SettingsPage />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Route>
-      </Routes>
+      <CelebrationProvider>
+        <MilestoneWatcher />
+        <Routes>
+          <Route path="/welcome" element={<Onboarding />} />
+          <Route path="/vault" element={<Vault />} />
+          <Route element={<AppShell />}>
+            <Route path="/" element={<Landing />} />
+            <Route path="/chat" element={<ChatPage />} />
+            <Route path="/chat/:conversationId" element={<ChatPage />} />
+            <Route path="/library" element={<Library />} />
+            <Route path="/memory" element={<Memory />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Route>
+        </Routes>
+      </CelebrationProvider>
     </ToastProvider>
   )
 }

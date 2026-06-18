@@ -102,7 +102,17 @@ export function Landing() {
   return (
     <div className="relative flex-1 overflow-y-auto">
       <AmbientAurora intensity={2} color="orange" />
-      <div className="pointer-events-none absolute inset-0 opacity-[0.04] bg-dot-grid bg-dot-grid" />
+      {/* First light — a soft dawn glow rising from the top edge. The signature
+          moment: an idea catching its first warmth as it's about to hatch. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[60vh]"
+        style={{
+          background:
+            'radial-gradient(ellipse 70% 55% at 50% -8%, hsl(var(--accent) / 0.16), transparent 70%)',
+        }}
+      />
+      <div className="pointer-events-none absolute inset-0 opacity-[0.04] bg-dot-grid" />
       <div className="pointer-events-none absolute inset-x-0 top-0 h-96">
         <ParticleField count={20} color="orange" energy={1} />
       </div>
@@ -114,17 +124,33 @@ export function Landing() {
           <HatchWordmark size={28} />
         </motion.div>
 
-        {/* Hero */}
-        <motion.section {...fadeUp(1)} className="flex flex-col gap-4">
-          <div>
-            <p className="text-sm font-medium text-fg-muted">{greeting()}</p>
-            <h1 className="mt-1 font-serif text-4xl font-medium leading-tight tracking-tight md:text-5xl">
-              {company?.name
-                ? <>{isNew ? 'Welcome to ' : 'Building '}<em className="text-accent not-italic">{company.name}</em>.</>
-                : isNew ? "Let's start building." : "Back at it."
-              }
-            </h1>
+        {/* Hero — the thesis. Editorial Fraunces headline + an adaptive
+            subhead in the founder's voice. */}
+        <motion.section {...fadeUp(1)} className="flex flex-col gap-5">
+          {/* Eyebrow */}
+          <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-fg-subtle">
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-accent animate-breathe" />
+            {greeting()}
+            {weekOfJourney > 0 && <span className="text-fg-subtle/70">· Week {weekOfJourney} of building</span>}
           </div>
+
+          <h1 className="font-serif text-5xl font-medium leading-[1.02] tracking-[-0.02em] md:text-6xl">
+            {company?.name ? (
+              <>{isNew ? 'Welcome to ' : 'Building '}<em className="not-italic text-accent">{company.name}</em>.</>
+            ) : isNew ? (
+              <>Your idea is<br />ready to <em className="not-italic text-accent">hatch</em>.</>
+            ) : (
+              'Back at it.'
+            )}
+          </h1>
+
+          <p className="max-w-xl text-base leading-relaxed text-fg-muted">
+            {isNew
+              ? 'One cofounder who remembers everything you tell it — your idea, your customers, every decision — and helps you ship the hard parts.'
+              : lastConvo
+                ? 'Pick up where you left off, or start something new. Your cofounder remembers all of it.'
+                : 'Your cofounder is awake. What are we working on?'}
+          </p>
 
           {/* Momentum badges */}
           <div className="flex flex-wrap gap-2">
@@ -250,7 +276,7 @@ export function Landing() {
 function ContinueCard({ convo }: { convo: Conversation }) {
   return (
     <Link
-      to="/chat"
+      to={`/chat/${convo.id}`}
       className="group block overflow-hidden rounded-2xl border border-border bg-bg-subtle/60 p-5 transition hover:border-accent/30 hover:bg-bg-subtle hover:shadow-glow"
     >
       <div className="flex items-start justify-between gap-4">
@@ -283,7 +309,7 @@ function FirstTimeCard({ stage }: { stage?: string }) {
     >
       <div className="flex items-center justify-between gap-4">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-widest text-accent/70">Your AI Cofounder is ready</p>
+          <p className="text-[11px] font-semibold uppercase tracking-widest text-accent">Your AI cofounder is ready</p>
           <h3 className="mt-1.5 text-lg font-semibold text-fg">
             {stage === 'idea' && "Start with your idea — what are you building?"}
             {stage === 'validating' && "Let's figure out how to validate this fast."}

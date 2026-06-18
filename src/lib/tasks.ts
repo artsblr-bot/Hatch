@@ -93,10 +93,19 @@ export async function completeTask(id: string): Promise<void> {
 
 /** Drop a task (kept for the history, marked as not done). */
 export async function dropTask(id: string, reason?: string): Promise<void> {
-  await db.tasks.update(id, {
-    status: 'dropped',
-    notes: reason ? `${reason}${reason.endsWith('.') ? '' : '.'}` : undefined,
-  })
+  // Stamp completedAt so the task shows up in the weekly review
+  // (completedInWeek filters on completedAt). Only touch notes when a reason
+  // is given — otherwise we'd wipe any existing note.
+  const patch: Partial<Task> = { status: 'dropped', completedAt: Date.now() }
+  if (reason) patch.notes = `${reason}${reason.endsWith('.') ? '' : '.'}`
+  await db.tasks.update(id, patch)
+}
+
+/** Rename a task in place, preserving its id, status, and timestamps. */
+export async function renameTask(id: string, title: string): Promise<void> {
+  const next = title.trim()
+  if (!next) return
+  await db.tasks.update(id, { title: next })
 }
 
 /** Re-open a task that was previously done or dropped. */
@@ -369,13 +378,17 @@ function regexProposeTasks(artifact: Artifact): { tasks: ProposedTask[]; reason:
     }
   }
 
-  // Third pass: any section with >=2 bullets.
-  for (const sec of sections) {
-    if (sec.bullets.length >= 2) {
-      for (const b of sec.bullets) {
-        const title = cleanBullet(b)
-        if (title.length >= 3) {
-          tasks.push({ title, context: sec.heading })
+  // Third pass: any section with >=2 bullets — but only if nothing was
+  // collected above, otherwise a single "Week N" section already captured in
+  // the first pass gets re-added here, duplicating every task.
+  if (tasks.length === 0) {
+    for (const sec of sections) {
+      if (sec.bullets.length >= 2) {
+        for (const b of sec.bullets) {
+          const title = cleanBullet(b)
+          if (title.length >= 3) {
+            tasks.push({ title, context: sec.heading })
+          }
         }
       }
     }

@@ -11,10 +11,11 @@ interface Props {
 }
 
 const PALETTES = {
-  orange: ['hsl(21, 100%, 55%)', 'hsl(28, 95%, 60%)'],
+  // Warm "first-light" dawn tones — yolk amber drifting into a soft rose-gold.
+  orange: ['hsl(35, 92%, 60%)', 'hsl(22, 85%, 58%)'],
   violet: ['hsl(265, 90%, 65%)', 'hsl(290, 80%, 60%)'],
   teal: ['hsl(174, 65%, 50%)', 'hsl(190, 80%, 55%)'],
-  mix: ['hsl(21, 100%, 55%)', 'hsl(265, 80%, 60%)', 'hsl(174, 65%, 50%)'],
+  mix: ['hsl(35, 92%, 60%)', 'hsl(15, 80%, 60%)', 'hsl(45, 85%, 62%)'],
 } as const
 
 /**
@@ -49,7 +50,7 @@ export function AmbientAurora({ className, intensity = 2, color = 'orange', fixe
       {blobs.map((b, i) => (
         <span
           key={i}
-          className="absolute rounded-full mix-blend-screen blur-3xl opacity-[0.18] will-change-transform"
+          className="absolute rounded-full blur-3xl opacity-[0.22] mix-blend-multiply will-change-transform dark:opacity-[0.18] dark:mix-blend-screen"
           style={{
             left: b.x,
             top: b.y,

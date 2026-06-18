@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
   CheckCircle2,
   Circle,
@@ -23,9 +23,12 @@ import {
   addTask,
 } from '@/lib/tasks'
 import { TaskCard } from './TaskCard'
-import { ConfettiBurst } from './ConfettiBurst'
 import { ProgressBar } from './ProgressBar'
+import { CountUp } from './CountUp'
 import { useToast } from './Toast'
+import { useCelebrate } from './Celebration'
+import { haptic, playSound, spring, EASE_OUT } from '@/lib/juice'
+import { cn } from '@/lib/utils'
 
 /**
  * The "Today" widget — the founder's daily surface. Sits at the top of
@@ -39,6 +42,7 @@ import { useToast } from './Toast'
 export function TodayPanel() {
   const toast = useToast()
   const navigate = useNavigate()
+  const { burst: fireBurst } = useCelebrate()
   const now = Date.now()
   const thisWeek = weekStart()
   const thisWeekEnd = weekEnd(thisWeek)
@@ -51,11 +55,17 @@ export function TodayPanel() {
   const [showAll, setShowAll] = useState(false)
   const [showAdd, setShowAdd] = useState(false)
   const prevOpenCount = useRef<number | null>(null)
-  const [burst, setBurst] = useState(false)
 
   const open = tasks.filter((t) => t.status === 'open')
   const done = tasks.filter((t) => t.status === 'done')
   const dropped = tasks.filter((t) => t.status === 'dropped')
+
+  // When the week rolls over (e.g. across midnight Monday), the live query
+  // swaps to the new week's (empty) task set. Re-baseline so that drop to 0
+  // open tasks isn't misread as "just cleared the week".
+  useEffect(() => {
+    prevOpenCount.current = null
+  }, [thisWeek])
 
   // Confetti: fires when we transition from N>0 open tasks to 0 open tasks
   useEffect(() => {
@@ -64,11 +74,11 @@ export function TodayPanel() {
       return
     }
     if (prevOpenCount.current > 0 && open.length === 0) {
-      setBurst(true)
+      fireBurst('big')
       toast.success('Week cleared!', 'Every task for this week is done. Take a breath.')
     }
     prevOpenCount.current = open.length
-  }, [open.length, toast])
+  }, [open.length, toast, fireBurst])
 
   // Three "do today" tasks: overdue first, then by dueAt, then by createdAt
   const todayList = useMemo(() => {
@@ -110,8 +120,6 @@ export function TodayPanel() {
       id="today-panel"
       className="relative overflow-hidden rounded-2xl border border-border bg-bg-subtle/40 backdrop-blur-sm"
     >
-      {burst && <ConfettiBurst active={burst} onDone={() => setBurst(false)} />}
-
       <div className="flex items-center gap-3 border-b border-border-subtle px-4 py-3">
         <div className="grid h-8 w-8 place-items-center rounded-lg bg-accent/10 text-accent">
           <ListTodo className="h-4 w-4" />
@@ -122,12 +130,29 @@ export function TodayPanel() {
             <span className="text-[10px] text-fg-subtle">· {weekLabel}</span>
           </div>
           <div className="mt-1">
-            <ProgressBar value={done.length} max={Math.max(1, totalCount)} size="xs" />
+            <ProgressBar value={done.length} max={Math.max(1, totalCount)} size="xs" glow />
           </div>
         </div>
         <div className="flex items-center gap-1.5 text-[10px] text-fg-muted">
-          <span className="tabular-nums font-semibold text-fg">{done.length}</span>
-          <span>/ {totalCount || 0}</span>
+          {open.length === 1 && totalCount > 1 ? (
+            <motion.span
+              animate={{ opacity: [1, 0.5, 1] }}
+              transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut' }}
+              className="font-semibold text-accent"
+            >
+              1 left — finish strong
+            </motion.span>
+          ) : (
+            <>
+              <CountUp
+                value={done.length}
+                trigger="change"
+                duration={500}
+                className="tabular-nums font-semibold text-fg"
+              />
+              <span>/ {totalCount || 0}</span>
+            </>
+          )}
           {dropped.length > 0 && (
             <span className="rounded-full bg-bg-muted px-1.5 py-0.5 text-[9px] text-fg-subtle">
               {dropped.length} dropped
@@ -142,9 +167,11 @@ export function TodayPanel() {
         <ClearedToday done={done.length} dropped={dropped.length} onAdd={() => setShowAdd(true)} />
       ) : (
         <div className="divide-y divide-border-subtle">
-          {visible.map((t) => (
-            <TodayTaskRow key={t.id} task={t} />
-          ))}
+          <AnimatePresence initial={false}>
+            {visible.map((t) => (
+              <TodayTaskRow key={t.id} task={t} />
+            ))}
+          </AnimatePresence>
         </div>
       )}
 
@@ -165,7 +192,7 @@ export function TodayPanel() {
 
       {/* Friday (or weekend) check-in entry — surfaces the 3-step reflection
           flow at the moment the founder is most likely to use it. */}
-      {([5, 6, 0].includes(new Date().getDay()) || done.length > 0) && open.length === 0 && done.length > 0 && (
+      {[5, 6, 0].includes(new Date().getDay()) && open.length === 0 && done.length > 0 && (
         <button
           onClick={() => navigate('/memory?tab=checkins')}
           className="flex w-full items-center gap-2 border-t border-border-subtle bg-accent/5 px-4 py-2.5 text-left text-[11px] font-medium text-accent transition hover:bg-accent/10"
@@ -243,15 +270,42 @@ export function TodayPanel() {
 
 function TodayTaskRow({ task }: { task: Task }) {
   const over = (task.dueAt ?? Infinity) < Date.now()
+  const [checking, setChecking] = useState(false)
+
+  const handleComplete = () => {
+    if (checking) return
+    setChecking(true)
+    haptic('success')
+    playSound('complete')
+    // Small delay so the satisfying check-pop registers before the live query
+    // removes the row and the exit animation plays.
+    setTimeout(() => completeTask(task.id), 200)
+  }
+
   return (
-    <div className="group flex items-start gap-2 px-4 py-2.5 transition hover:bg-bg-subtle/60">
-      <button
-        onClick={() => completeTask(task.id)}
-        className="mt-0.5 grid h-5 w-5 flex-shrink-0 place-items-center rounded-full border border-border text-transparent transition hover:border-accent hover:text-accent/40"
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 4 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, x: 16, height: 0, paddingTop: 0, paddingBottom: 0 }}
+      transition={spring.soft}
+      className="group flex items-start gap-2 overflow-hidden px-4 py-2.5 transition hover:bg-bg-subtle/60"
+    >
+      <motion.button
+        onClick={handleComplete}
+        whileTap={{ scale: 0.8 }}
+        animate={checking ? { scale: [1, 1.3, 1] } : { scale: 1 }}
+        transition={{ duration: 0.3, ease: EASE_OUT }}
+        className={cn(
+          'mt-0.5 grid h-5 w-5 flex-shrink-0 place-items-center rounded-full border transition',
+          checking
+            ? 'border-accent bg-accent text-accent-fg'
+            : 'border-border text-transparent hover:border-accent hover:text-accent/40'
+        )}
         title="Mark done"
       >
         <CheckCircle2 className="h-3.5 w-3.5" />
-      </button>
+      </motion.button>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
           <div className="flex-1 min-w-0 truncate text-sm text-fg">{task.title}</div>
@@ -279,7 +333,7 @@ function TodayTaskRow({ task }: { task: Task }) {
       <div className="opacity-0 transition group-hover:opacity-100">
         <TaskCard task={task} compact />
       </div>
-    </div>
+    </motion.div>
   )
 }
 
