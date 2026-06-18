@@ -158,7 +158,7 @@ export function SettingsPage() {
               <VerbListEditor
                 key={a.id}
                 agent={a}
-                verbs={settings.verbLists[a.id]}
+                verbs={settings.verbLists[a.id] ?? AGENTS.cofounder.verbs}
                 onChange={(verbs) => updateSettings({ verbLists: { ...settings.verbLists, [a.id]: verbs } })}
               />
             ))}
@@ -362,7 +362,7 @@ function ProviderKeyForm({ info, encryptedKey, hasPassphrase }: { info: Provider
             <input
               type={show ? 'text' : 'password'}
               value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
+              onChange={(e) => { setApiKey(e.target.value); setTestResult(null) }}
               placeholder={info.keyPlaceholder || 'API key'}
               className="w-full rounded-lg border border-border bg-bg px-3 py-1.5 pr-8 text-sm placeholder:text-fg-subtle focus:border-fg/20 focus:outline-none focus:ring-2 focus:ring-accent/20"
               autoComplete="off"

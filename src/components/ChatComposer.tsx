@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback, KeyboardEvent } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { Send, Square, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { AgentRole } from '@/lib/db'
@@ -11,46 +12,42 @@ interface Props {
   activeAgent?: AgentRole
 }
 
+const FOLLOW_UP_POOL = [
+  'Go deeper on this',
+  'Give me a concrete example',
+  "What's the biggest risk here?",
+  'How do I start today?',
+  'Make this simpler',
+  "What am I missing?",
+  'Challenge my assumption',
+  'What would you prioritize first?',
+  'Turn this into action steps',
+  "What's the fastest way to test this?",
+  'Break this into 3 next steps',
+  "What would a skeptic say?",
+]
+
 const SUGGESTIONS: { agent: string; prompts: string[] }[] = [
   {
-    agent: 'mentor',
+    agent: 'cofounder',
     prompts: [
-      "I'm not sure what to focus on this week. Help me figure it out.",
-      "I keep getting stuck on this one thing. Can we talk it through?",
-      "How do I know if I'm building the right thing?",
-    ],
-  },
-  {
-    agent: 'cto',
-    prompts: [
-      "I want to build a landing page this weekend. What's the fastest stack?",
-      "Should I use a no-code tool or hire a developer for this?",
-      "How do I add a payments system without writing code?",
-    ],
-  },
-  {
-    agent: 'cmo',
-    prompts: [
+      "I'm not sure what to focus on this week. Help me prioritise.",
+      "What's the fastest way to validate this idea without building anything?",
       "Write me a one-liner for my landing page.",
-      "Where should I focus to find my first 100 customers?",
-      "Help me write a launch post for Twitter.",
-    ],
-  },
-  {
-    agent: 'cfo',
-    prompts: [
+      "Should I use a no-code tool or hire a developer for this?",
       "Should I charge per month or per use?",
-      "How do I know if my CAC is too high?",
-      "Walk me through a basic financial model for my business.",
+      "Where should I focus to find my first 100 customers?",
     ],
   },
 ]
 
-export function ChatComposer({ onSend, onStop, disabled, placeholder = 'Reply…', activeAgent = 'mentor' }: Props) {
+export function ChatComposer({ onSend, onStop, disabled, placeholder = 'Reply…', activeAgent = 'cofounder' }: Props) {
   const [text, setText] = useState('')
   const [focused, setFocused] = useState(false)
+  const [chips, setChips] = useState<string[]>([])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const lastSubmitRef = useRef(0)
+  const wasDisabledRef = useRef(false)
 
   // Auto-resize
   useEffect(() => {
@@ -58,6 +55,22 @@ export function ChatComposer({ onSend, onStop, disabled, placeholder = 'Reply…
     if (!ta) return
     ta.style.height = 'auto'
     ta.style.height = Math.min(ta.scrollHeight, 240) + 'px'
+  }, [text])
+
+  // Show follow-up chips when a response finishes (disabled flips true → false)
+  useEffect(() => {
+    if (wasDisabledRef.current && !disabled) {
+      const shuffled = [...FOLLOW_UP_POOL].sort(() => Math.random() - 0.5)
+      setChips(shuffled.slice(0, 3))
+      const t = setTimeout(() => setChips([]), 30000)
+      return () => clearTimeout(t)
+    }
+    wasDisabledRef.current = !!disabled
+  }, [disabled])
+
+  // Clear chips when user starts typing
+  useEffect(() => {
+    if (text.length > 0) setChips([])
   }, [text])
 
   const submit = useCallback(() => {
@@ -120,9 +133,11 @@ export function ChatComposer({ onSend, onStop, disabled, placeholder = 'Reply…
                   <span>Stop</span>
                 </button>
               ) : (
-                <button
+                <motion.button
                   onClick={submit}
                   disabled={!text.trim()}
+                  whileTap={text.trim() ? { scale: 0.9 } : {}}
+                  transition={{ type: 'spring', stiffness: 500, damping: 20 }}
                   className={cn(
                     'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition focus-ring',
                     text.trim()
@@ -132,30 +147,60 @@ export function ChatComposer({ onSend, onStop, disabled, placeholder = 'Reply…
                 >
                   <Send className="h-3 w-3" />
                   <span>Send</span>
-                </button>
+                </motion.button>
               )}
             </div>
           </div>
         </div>
 
-        {/* Suggestions — shown for the currently active agent */}
-        {text.length === 0 && !disabled && (() => {
-          const prompts = SUGGESTIONS.find((s) => s.agent === activeAgent)?.prompts.slice(0, 2) ?? []
-          if (prompts.length === 0) return null
-          return (
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              {prompts.map((p, i) => (
-                <button
-                  key={i}
-                  onClick={() => setText(p)}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg-subtle/40 px-3 py-1 text-xs text-fg-muted transition hover:border-border hover:bg-bg-muted hover:text-fg"
+        {/* Follow-up chips (post-response) or starter suggestions (idle) */}
+        {text.length === 0 && !disabled && (
+          <div className="mt-3">
+            <AnimatePresence mode="wait">
+              {chips.length > 0 ? (
+                <motion.div
+                  key="chips"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0, transition: { duration: 0.12 } }}
+                  className="flex flex-wrap gap-1.5"
                 >
-                  {p}
-                </button>
-              ))}
-            </div>
-          )
-        })()}
+                  {chips.map((chip, i) => (
+                    <motion.button
+                      key={chip}
+                      initial={{ opacity: 0, y: 7 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: i * 0.08, duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => { setText(chip); setChips([]) }}
+                      className="inline-flex items-center gap-1 rounded-full border border-accent/25 bg-accent/[0.08] px-3 py-1 text-xs font-medium text-accent transition hover:bg-accent/[0.15] hover:border-accent/40"
+                    >
+                      {chip} →
+                    </motion.button>
+                  ))}
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="suggestions"
+                  initial={false}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0, transition: { duration: 0.1 } }}
+                  className="flex flex-wrap gap-1.5"
+                >
+                  {(SUGGESTIONS.find((s) => s.agent === activeAgent)?.prompts.slice(0, 2) ?? []).map((p, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setText(p)}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg-subtle/40 px-3 py-1 text-xs text-fg-muted transition hover:border-border hover:bg-bg-muted hover:text-fg"
+                    >
+                      {p}
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
       </div>
     </div>
   )

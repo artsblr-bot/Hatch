@@ -1,15 +1,18 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams, useLocation } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { nanoid } from 'nanoid'
 import {
   db,
+  updateCompany,
   type AgentRole,
   type Message,
   type Conversation,
+  type CompanyMemory,
 } from '@/lib/db'
+import { shouldInfer, inferPersonalityStyle } from '@/lib/personalityInfer'
 import { AGENTS } from '@/lib/agents'
-import { runChat, extractMemory, rerunMissedToolCall } from '@/lib/chat'
+import { runChat, extractMemory, extractArchivalMemories, rerunMissedToolCall } from '@/lib/chat'
 import { isUnlocked } from '@/lib/crypto'
 import { type ProviderId, getModelInfo } from '@/lib/providers'
 import { useToast } from '@/components/Toast'
@@ -18,14 +21,60 @@ import { MessageList } from '@/components/MessageList'
 import { ChatComposer } from '@/components/ChatComposer'
 import { useJitterBuffer } from '@/hooks/useJitterBuffer'
 
+// ---------------------------------------------------------------------------
+// First-chat welcome message — personalised from onboarding data
+// ---------------------------------------------------------------------------
+
+function buildWelcomeMessage(c: CompanyMemory): string {
+  const stage  = c.stage  || 'idea'
+  const idea   = c.idea?.trim()
+  const icp    = c.icp?.trim()
+  const name   = c.name?.trim()
+
+  const hooks: Record<string, string> = {
+    idea:       "The idea stage is where most founders spin their wheels — overthinking instead of testing. Let's skip that.",
+    validating: "Validation mode is where momentum is made or lost. Let's make sure you're running the right experiments.",
+    building:   "Building is where scope creep quietly kills momentum. Let's keep your priorities sharp.",
+    launched:   "Being live is huge — most people never get here. Growth mode is a completely different game.",
+  }
+
+  const questions: Record<string, string> = {
+    idea:       "**What's the one assumption about this idea that scares you the most?** That's where we start.",
+    validating: "**What does your current validation look like?** Are you talking to real people yet, or still figuring out how to reach them?",
+    building:   "**What's the one thing you absolutely need to ship this week?** Let's protect it from everything else.",
+    launched:   "**What's your biggest bottleneck right now** — getting people to find you, or getting them to come back?",
+  }
+
+  let msg = ''
+  if (name && idea && icp) {
+    msg += `Hey — I've got your context. You're building **${idea}** for **${icp}**.\n\n`
+  } else if (idea) {
+    msg += `Hey — I know you're working on **${idea}**.\n\n`
+  } else if (name) {
+    msg += `Hey — I'm your cofounder for **${name}**. Let's build something people actually want.\n\n`
+  } else {
+    msg += `Hey — I'm your AI cofounder. Strategy, product, marketing, finance — all in one.\n\n`
+  }
+
+  msg += hooks[stage] ?? hooks.idea
+  msg += '\n\n'
+  msg += questions[stage] ?? questions.idea
+
+  return msg
+}
+
 export function ChatPage() {
   const { conversationId: paramId } = useParams<{ conversationId: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
   const toast = useToast()
-  const settings = useLiveQuery(() => db.settings.get('singleton'), [])
+  const settings              = useLiveQuery(() => db.settings.get('singleton'), [])
+  const company               = useLiveQuery(() => db.company.get('singleton'), [])
+  const totalConversationCount = useLiveQuery(() => db.conversations.count(), [])
+  const userMessageCount      = useLiveQuery(() => db.messages.where('role').equals('user').count(), []) || 0
 
   const [conversationId, setConversationId] = useState<string | null>(paramId || null)
-  const [activeAgent, setActiveAgent] = useState<AgentRole>('mentor')
+  const activeAgent: AgentRole = 'cofounder'
   const [isStreaming, setIsStreaming] = useState(false)
   const [streamingMsgId, setStreamingMsgId] = useState<string | null>(null)
   const [searchParams, setSearchParams] = useSearchParams()
@@ -46,6 +95,12 @@ export function ChatPage() {
   const rerunAbortRef = useRef<AbortController | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const jitter = useJitterBuffer({ charsPerSecond: 90, tickMs: 32, immediate: true })
+
+  // Quick-prompt prefill from Landing page chips
+  const prefillRef = useRef<string | null>(
+    typeof (location.state as any)?.prefill === 'string' ? (location.state as any).prefill : null
+  )
+  const prefillSentRef = useRef(false)
 
   // Sync state when the URL param changes (clicking a different conversation
   // in the sidebar, ⌘K, etc.). React re-uses the same component instance when
@@ -85,17 +140,10 @@ export function ChatPage() {
     [conversationId]
   ) as Conversation | undefined
 
-  // Sync active agent with conversation
-  useEffect(() => {
-    if (conversation?.agentRole) {
-      setActiveAgent(conversation.agentRole)
-    }
-  }, [conversation?.agentRole])
-
   // Scroll to bottom on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
-  }, [messages.length, jitter.state.text, isStreaming])
+  }, [messages.length, isStreaming])
 
   // Deep-link support: ?msg=<id> scrolls to that message and flashes it
   // (used by the Library "From this conversation" badge — Feature 5).
@@ -212,7 +260,7 @@ export function ChatPage() {
             messages: history,
             conversationId: convId,
             signal: ac.signal,
-            verbList: settings.verbLists[activeAgent],
+            verbList: settings.verbLists[activeAgent] ?? AGENTS.cofounder.verbs,
             onStep: async (step) => {
               setStepOverrides((prev) => ({ ...prev, [step.id]: step.status }))
               // Persist into the assistant message
@@ -356,15 +404,61 @@ export function ChatPage() {
     [settings, activeAgent, ensureConversation, jitter, toast]
   )
 
+  // Fire prefill from Landing quick-prompt chips once settings are ready
+  useEffect(() => {
+    if (!prefillRef.current || prefillSentRef.current || !settings) return
+    prefillSentRef.current = true
+    const text = prefillRef.current
+    prefillRef.current = null
+    window.history.replaceState({}, '', window.location.href)
+    handleSend(text)
+  }, [settings, handleSend])
+
+  // Inject a personalized welcome message the very first time the user opens chat
+  const welcomeSentRef = useRef(false)
+  useEffect(() => {
+    if (welcomeSentRef.current) return
+    if (!settings || !company || totalConversationCount === undefined) return
+    if (totalConversationCount !== 0) return
+    if (isStreaming) return
+    welcomeSentRef.current = true
+
+    const inject = async () => {
+      const convId = await ensureConversation(activeAgent)
+      // Brief pause so the chat UI renders before the message appears
+      await new Promise((r) => setTimeout(r, 650))
+      const welcomeText = buildWelcomeMessage(company)
+      const msg: Message = {
+        id: nanoid(12),
+        conversationId: convId,
+        role: 'assistant',
+        content: welcomeText,
+        createdAt: Date.now(),
+      }
+      await db.messages.put(msg)
+      await db.conversations.update(convId, {
+        title: 'Getting started',
+        messageCount: 1,
+        updatedAt: Date.now(),
+      })
+    }
+
+    inject()
+  }, [settings, company, totalConversationCount, isStreaming, ensureConversation, activeAgent])
+
+  // Personality inference — runs in the background after enough messages accumulate.
+  // Updates company.personalityStyle so buildSystemPrompt can adapt the cofounder's tone.
+  useEffect(() => {
+    if (!company || !shouldInfer(company.personalityStyle, userMessageCount)) return
+    ;(async () => {
+      const msgs = await db.messages.where('role').equals('user').toArray()
+      const style = inferPersonalityStyle(msgs)
+      if (style) await updateCompany({ personalityStyle: style })
+    })()
+  }, [userMessageCount]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleStop = () => {
     abortRef.current?.abort()
-  }
-
-  const handleAgentSwitch = async (role: AgentRole) => {
-    setActiveAgent(role)
-    if (conversationId) {
-      await db.conversations.update(conversationId, { agentRole: role })
-    }
   }
 
   const handleModelChange = async (modelId: string) => {
@@ -475,7 +569,6 @@ export function ChatPage() {
         agent={AGENTS[activeAgent]}
         providerId={activeProviderId}
         model={settings.defaultModel || ''}
-        onAgentSwitch={handleAgentSwitch}
         onModelChange={handleModelChange}
         isStreaming={isStreaming}
       />
@@ -488,7 +581,7 @@ export function ChatPage() {
         streaming={isStreaming}
         stepOverrides={stepOverrides}
         toolOverrides={toolOverrides}
-        verbList={settings.verbLists[activeAgent]}
+        verbList={settings.verbLists[activeAgent] ?? AGENTS.cofounder.verbs}
         activeAgent={activeAgent}
         endRef={messagesEndRef}
         onRerunMissedToolCall={handleRerunMissedToolCall}
@@ -505,17 +598,8 @@ export function ChatPage() {
   )
 }
 
-function placeholderFor(role: AgentRole): string {
-  switch (role) {
-    case 'mentor':
-      return 'Tell me about your idea, and what stage you\'re at.'
-    case 'cto':
-      return 'What are you trying to build? I\'ll suggest the simplest stack.'
-    case 'cmo':
-      return 'Who are you trying to reach, and what\'s your story so far?'
-    case 'cfo':
-      return 'What\'s your pricing today, and what\'s worrying you about the numbers?'
-  }
+function placeholderFor(_role: AgentRole): string {
+  return "What's on your mind? Tell me about your idea or what you're stuck on."
 }
 
 const extractionQueue = new Map<string, ReturnType<typeof setTimeout>>()
@@ -534,9 +618,8 @@ function scheduleMemoryExtraction(
     const recent = await db.messages
       .where('conversationId')
       .equals(conversationId)
-      .reverse()
       .sortBy('createdAt')
-    const last10 = recent.slice(-10).reverse()
+    const last10 = recent.slice(-10)
     const extraction = await extractMemory(
       provider,
       model,
@@ -552,6 +635,13 @@ function scheduleMemoryExtraction(
         confirmed: false,
       })
     }
+    // Also run the archival extraction (auto-saved, no approval needed)
+    await extractArchivalMemories(
+      provider,
+      model,
+      last10.map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
+      conversationId
+    )
   }, 2500)
   extractionQueue.set(conversationId, t)
 }

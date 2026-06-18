@@ -12,7 +12,7 @@ import {
   type AgentRole,
   type Artifact,
 } from '@/lib/db'
-import { AGENTS, AGENT_LIST } from '@/lib/agents'
+import { AGENTS } from '@/lib/agents'
 import { useRotatingWords } from '@/hooks/useRotatingWords'
 import { useToast } from './Toast'
 import { ARTIFACT_TEMPLATES, parseArtifacts, stripArtifacts, parseHtmlBlocks, stripHtmlBlocks } from '@/lib/artifacts'
@@ -72,6 +72,19 @@ export function MessageList({ messages, streamingMsgId, streamingText, streaming
     [messages.map((m) => m.id).join(',')]
   ) || new Map<string, Artifact[]>()
 
+  // Track when streaming finishes to fire the done-glow animation
+  const [recentlyDoneId, setRecentlyDoneId] = useState<string | null>(null)
+  const prevStreamingIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (prevStreamingIdRef.current && !streamingMsgId) {
+      const id = prevStreamingIdRef.current
+      setRecentlyDoneId(id)
+      const t = setTimeout(() => setRecentlyDoneId(null), 1100)
+      return () => clearTimeout(t)
+    }
+    prevStreamingIdRef.current = streamingMsgId
+  }, [streamingMsgId])
+
   if (messages.length === 0 && !streaming) {
     return <EmptyState verbList={verbList} activeAgent={activeAgent} />
   }
@@ -101,7 +114,7 @@ export function MessageList({ messages, streamingMsgId, streamingText, streaming
               />
             )
           return (
-            <div key={m.id} className="group/message relative" data-message-id={m.id}>
+            <div key={m.id} className={cn('group/message relative', m.id === recentlyDoneId && 'animate-done-glow rounded-2xl')} data-message-id={m.id}>
               {inner}
               <MessageActions
                 message={m}
@@ -131,42 +144,14 @@ function EmptyState({ activeAgent }: { verbList: string[]; activeAgent: AgentRol
           initial={{ scale: 0.6, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ type: 'spring', damping: 18 }}
-          className="relative mx-auto h-32 w-32"
+          className="mx-auto"
         >
-          {/* Orbiting inactive agents */}
-          {AGENT_LIST.filter((a) => a.id !== activeAgent).map((a, i) => {
-            const angle = (i * 360) / 3
-            return (
-              <motion.div
-                key={a.id}
-                className="absolute left-1/2 top-1/2 grid h-9 w-9 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-xl text-lg opacity-70"
-                style={{
-                  backgroundColor: `hsl(var(--agent-${a.color}) / 0.15)`,
-                  color: `hsl(var(--agent-${a.color}))`,
-                }}
-                animate={{
-                  x: [
-                    Math.cos(((angle - 90) * Math.PI) / 180) * 60 - 18,
-                    Math.cos(((angle - 90 + 360) * Math.PI) / 180) * 60 - 18,
-                  ],
-                  y: [
-                    Math.sin(((angle - 90) * Math.PI) / 180) * 60 - 18,
-                    Math.sin(((angle - 90 + 360) * Math.PI) / 180) * 60 - 18,
-                  ],
-                }}
-                transition={{ duration: 22, repeat: Infinity, ease: 'linear' }}
-              >
-                {a.emoji}
-              </motion.div>
-            )
-          })}
-          {/* Active agent in the middle, breathing */}
           <div
-            className="absolute left-1/2 top-1/2 grid h-16 w-16 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-2xl text-3xl animate-breathe"
+            className="mx-auto grid h-20 w-20 place-items-center rounded-3xl text-4xl animate-breathe"
             style={{
               backgroundColor: `hsl(var(--agent-${agent.color}) / 0.22)`,
               color: `hsl(var(--agent-${agent.color}))`,
-              boxShadow: `0 0 32px hsl(var(--agent-${agent.color}) / 0.25)`,
+              boxShadow: `0 0 40px hsl(var(--agent-${agent.color}) / 0.25)`,
             }}
           >
             {agent.emoji}
@@ -333,6 +318,8 @@ function StreamingMessage({
   toolOverrides: Record<string, { status: 'pending' | 'ok' | 'error'; result?: any; name?: string }>
   verbList: string[]
 }) {
+  const isThinking = !streamingText && !streamingReasoning
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -340,8 +327,13 @@ function StreamingMessage({
       transition={{ duration: 0.18 }}
       className="flex flex-col gap-2"
     >
-      {/* Status pipeline with rotating verbs */}
-      <RotatingStep verbList={verbList} isStreaming={true} />
+      {/* Pre-text: rich thinking orb. During text: compact rotating step. */}
+      <AnimatePresence>
+        {isThinking
+          ? <ThinkingOrb key="orb" verbList={verbList} />
+          : <RotatingStep key="step" verbList={verbList} isStreaming={true} />
+        }
+      </AnimatePresence>
 
       {/* Steps */}
       {message.steps && message.steps.length > 0 && (
@@ -373,13 +365,16 @@ function StreamingMessage({
         <ReasoningBlock text={streamingReasoning} live />
       )}
 
-      {/* Streaming content */}
+      {/* Streaming content + blinking cursor */}
       {streamingText ? (
-        <div className="prose-chat max-w-none text-[15px]">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-            {stripHtmlBlocks(stripArtifacts(streamingText))}
-          </ReactMarkdown>
-        </div>
+        <>
+          <div className="prose-chat max-w-none text-[15px]">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {stripHtmlBlocks(stripArtifacts(streamingText))}
+            </ReactMarkdown>
+          </div>
+          <span className="h-3.5 w-0.5 self-start animate-blink rounded-full bg-accent/70" />
+        </>
       ) : null}
 
       {/* HTML previews — render in real-time as the model writes HTML. Each
@@ -467,6 +462,67 @@ function ReasoningBlock({ text, live }: { text: string; live: boolean }) {
   )
 }
 
+function ThinkingOrb({ verbList }: { verbList: string[] }) {
+  const { word, visible } = useRotatingWords({ words: verbList, enabled: true, intervalMs: [2000, 3200] })
+  const agent = AGENTS.cofounder
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.92 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+      transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+      className="flex flex-col gap-3.5"
+    >
+      <div className="flex items-center gap-3.5">
+        <div className="relative flex-shrink-0">
+          {[0, 1].map((i) => (
+            <motion.div
+              key={i}
+              className="absolute inset-0 rounded-full border border-accent/25"
+              animate={{ scale: [1, 2.1], opacity: [0.5, 0] }}
+              transition={{ duration: 2.4, delay: i * 0.9, repeat: Infinity, ease: 'easeOut' }}
+            />
+          ))}
+          <div
+            className="relative flex h-11 w-11 items-center justify-center rounded-full text-2xl animate-orb-breathe"
+            style={{
+              background: 'hsl(var(--accent) / 0.12)',
+              border: '1px solid hsl(var(--accent) / 0.28)',
+              boxShadow: '0 0 24px hsl(var(--accent) / 0.16)',
+            }}
+          >
+            {agent.emoji}
+          </div>
+        </div>
+        <div className="flex flex-col gap-0.5">
+          <AnimatePresence mode="wait">
+            <motion.span
+              key={word}
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: visible ? 1 : 0.7, y: 0 }}
+              exit={{ opacity: 0, y: -3 }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
+              className="text-[15px] font-medium text-fg"
+            >
+              {word}…
+            </motion.span>
+          </AnimatePresence>
+          <span className="text-[12px] text-fg-subtle">Your cofounder is thinking</span>
+        </div>
+      </div>
+      <div className="flex flex-col gap-2.5 pl-0.5">
+        {[56, 38, 44].map((w, i) => (
+          <div
+            key={i}
+            className="h-2.5 rounded-full shimmer"
+            style={{ width: `${w}%`, animationDelay: `${i * 0.18}s` }}
+          />
+        ))}
+      </div>
+    </motion.div>
+  )
+}
+
 function RotatingStep({ verbList, isStreaming }: { verbList: string[]; isStreaming: boolean }) {
   const { word, visible } = useRotatingWords({ words: verbList, enabled: isStreaming, intervalMs: [2000, 3000] })
   if (!isStreaming) return null
@@ -490,7 +546,11 @@ function StepRow({ step }: { step: { id: string; label: string; status: 'pending
   return (
     <div className="flex items-center gap-2 text-[12px]">
       <div className="flex h-4 w-4 flex-shrink-0 items-center justify-center">
-        {step.status === 'done' && <Check className="h-3 w-3 text-success" />}
+        {step.status === 'done' && (
+          <span className="inline-flex animate-check-pop">
+            <Check className="h-3 w-3 text-success" />
+          </span>
+        )}
         {step.status === 'active' && (
           <div className="relative h-2 w-2">
             <div className="absolute inset-0 animate-think-pulse rounded-full bg-accent" />
@@ -540,21 +600,23 @@ function ToolCallRow({
   // of `missed: true` once the rerun completes, at which point this flips
   // back to the regular Claude-style result renderer.
   const isRerunning = isMissed && call.status === 'pending'
-  const [open, setOpen] = useState(
-    // Auto-open on success for tools whose results are useful to skim, AND on
-    // missed calls (the founder needs to see what the model attempted).
-    isMissed || (call.status === 'ok' && (call.name === 'search_artifacts' || call.name === 'web_search' || call.name === 'fetch_url' || call.name === 'fetch_artifact'))
-  )
   const isArtifactSearch = call.name === 'search_artifacts'
   const isWebSearch = call.name === 'web_search'
   const isFetchUrl = call.name === 'fetch_url'
   const isFetchArtifact = call.name === 'fetch_artifact'
+  const isRecallMemory = call.name === 'recall_memory'
   const navigate = useNavigate()
+
+  const [open, setOpen] = useState(
+    // Auto-open on success for tools whose results are useful to skim, AND on
+    // missed calls (the founder needs to see what the model attempted).
+    isMissed || (call.status === 'ok' && (isArtifactSearch || isWebSearch || isFetchUrl || isFetchArtifact || isRecallMemory))
+  )
 
   // Auto-expand on first done so the user sees what was searched
   useEffect(() => {
-    if (call.status === 'ok' && (isArtifactSearch || isWebSearch || isFetchUrl || isFetchArtifact)) setOpen(true)
-  }, [call.status, isArtifactSearch, isWebSearch, isFetchUrl, isFetchArtifact])
+    if (call.status === 'ok' && (isArtifactSearch || isWebSearch || isFetchUrl || isFetchArtifact || isRecallMemory)) setOpen(true)
+  }, [call.status, isArtifactSearch, isWebSearch, isFetchUrl, isFetchArtifact, isRecallMemory])
 
   const Icon = isMissed
     ? AlertTriangle
@@ -566,7 +628,9 @@ function ToolCallRow({
           ? Database
           : isFetchArtifact
             ? FileText
-            : BookOpen
+            : isRecallMemory
+              ? Brain
+              : BookOpen
   const accentClass = isMissed
     ? 'text-amber-600 dark:text-amber-400'
     : isArtifactSearch
@@ -577,7 +641,9 @@ function ToolCallRow({
           ? 'text-emerald-600 dark:text-emerald-400'
           : isFetchArtifact
             ? 'text-violet-600 dark:text-violet-400'
-            : 'text-fg-muted'
+            : isRecallMemory
+              ? 'text-indigo-600 dark:text-indigo-400'
+              : 'text-fg-muted'
   const borderClass = isMissed
     ? 'border-amber-500/30 bg-amber-500/5'
     : isArtifactSearch
@@ -588,7 +654,9 @@ function ToolCallRow({
           ? 'border-emerald-500/30 bg-emerald-500/5'
           : isFetchArtifact
             ? 'border-violet-500/30 bg-violet-500/5'
-            : 'border-border-subtle bg-bg-subtle/30'
+            : isRecallMemory
+              ? 'border-indigo-500/30 bg-indigo-500/5'
+              : 'border-border-subtle bg-bg-subtle/30'
 
   // Headline label for the row (the "what is the agent doing" part)
   const label = isMissed
@@ -601,7 +669,9 @@ function ToolCallRow({
           ? 'Searched your library'
           : isFetchArtifact
             ? 'Read artifact'
-            : call.name
+            : isRecallMemory
+              ? 'Recalled memory'
+              : call.name
 
   return (
     <div className={cn('overflow-hidden rounded-xl border text-[12px] transition', borderClass)}>
@@ -650,6 +720,11 @@ function ToolCallRow({
               {call.result.truncated && <span className="ml-1 font-normal normal-case tracking-normal opacity-75">· trimmed</span>}
             </span>
           )}
+          {isRecallMemory && call.status === 'ok' && typeof call.result?.count === 'number' && (
+            <span className="rounded-full bg-indigo-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-indigo-700 dark:text-indigo-300">
+              {call.result.count} memor{call.result.count === 1 ? 'y' : 'ies'}
+            </span>
+          )}
           {isFetchUrl && call.status === 'ok' && call.result?.url && (
             <a
               href={call.result.url}
@@ -665,7 +740,7 @@ function ToolCallRow({
           {call.status === 'pending' && (
             <span className="flex items-center gap-1 text-fg-subtle">
               <span className="h-1.5 w-1.5 animate-think-pulse rounded-full bg-accent" />
-              {isWebSearch ? 'searching…' : isFetchUrl ? 'fetching…' : isArtifactSearch ? 'searching library…' : isFetchArtifact ? 'reading…' : 'running…'}
+              {isWebSearch ? 'searching…' : isFetchUrl ? 'fetching…' : isArtifactSearch ? 'searching library…' : isFetchArtifact ? 'reading…' : isRecallMemory ? 'recalling…' : 'running…'}
             </span>
           )}
           {call.status === 'ok' && <span className="text-success">done</span>}
@@ -764,11 +839,77 @@ function ToolCallRow({
         </div>
       )}
       {open && isFetchArtifact && !isMissed && <FetchArtifactResults call={call} onJumpToLibrary={() => navigate('/library')} />}
-      {open && !isMissed && !isArtifactSearch && !isWebSearch && !isFetchUrl && !isFetchArtifact && call.result && (
+      {open && isRecallMemory && !isMissed && <RecallMemoryResults call={call} />}
+      {open && !isMissed && !isArtifactSearch && !isWebSearch && !isFetchUrl && !isFetchArtifact && !isRecallMemory && call.result && (
         <div className="border-t border-border-subtle bg-bg-subtle/50 p-3 font-mono text-[11px] text-fg-muted">
           <pre className="whitespace-pre-wrap break-words">{JSON.stringify(call.result, null, 2).slice(0, 600)}</pre>
         </div>
       )}
+    </div>
+  )
+}
+
+function RecallMemoryResults({ call }: { call: { args?: any; result?: any; status: string } }) {
+  if (call.status === 'pending') {
+    return (
+      <div className="border-t border-indigo-500/20 bg-indigo-500/5 p-3 text-[11.5px] text-fg-muted">
+        <div className="flex items-center gap-2">
+          <Brain className="h-3 w-3 text-indigo-500" />
+          <span>Searching memory for <span className="text-fg">"{call.args?.query}"</span>…</span>
+        </div>
+      </div>
+    )
+  }
+  if (call.status === 'error') {
+    return (
+      <div className="border-t border-indigo-500/20 bg-indigo-500/5 p-3 text-[11.5px] text-danger">
+        {call.result?.error || 'Memory recall failed.'}
+      </div>
+    )
+  }
+  const hits: any[] = call.result?.hits || []
+  if (hits.length === 0) {
+    return (
+      <div className="border-t border-indigo-500/20 bg-indigo-500/5 p-3 text-[11.5px] text-fg-muted">
+        No memories found for "{call.args?.query}".
+      </div>
+    )
+  }
+  const TYPE_COLOR: Record<string, string> = {
+    insight: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
+    decision: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
+    context: 'bg-sky-500/15 text-sky-700 dark:text-sky-300',
+    metric: 'bg-violet-500/15 text-violet-700 dark:text-violet-300',
+    question: 'bg-orange-500/15 text-orange-700 dark:text-orange-300',
+    learning: 'bg-rose-500/15 text-rose-700 dark:text-rose-300',
+  }
+  return (
+    <div className="border-t border-indigo-500/20 bg-indigo-500/5 divide-y divide-indigo-500/10">
+      {hits.map((h: any, i: number) => (
+        <div key={h.id || i} className="flex items-start gap-2.5 px-3 py-2.5">
+          <span className="mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-indigo-500/20 text-[9px] font-bold text-indigo-700 dark:text-indigo-300">
+            {i + 1}
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-1.5">
+              {h.type && (
+                <span className={`rounded-full px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-wider ${TYPE_COLOR[h.type] || 'bg-bg-muted text-fg-muted'}`}>
+                  {h.type}
+                </span>
+              )}
+              {h.tags?.map((t: string) => (
+                <span key={t} className="rounded-full bg-bg-muted px-1.5 py-0.5 text-[9.5px] text-fg-subtle">{t}</span>
+              ))}
+              {h.createdAt && (
+                <span className="text-[9.5px] text-fg-subtle tabular-nums">
+                  {new Date(h.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                </span>
+              )}
+            </div>
+            <p className="mt-1 text-[11.5px] leading-relaxed text-fg">{h.content}</p>
+          </div>
+        </div>
+      ))}
     </div>
   )
 }

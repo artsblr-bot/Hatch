@@ -33,9 +33,10 @@ import {
   type StreamCallbacks,
 } from './providers'
 import { buildSystemPrompt } from './agents'
-import { getCompany } from './db'
+import { db, getCompany, getFounderProfile, getMemoryDigest, updateMemoryDigest } from './db'
 import { webSearch, fetchUrl, type SearchResult, type FetchedPage } from './search'
 import { searchArtifacts, formatArtifactSearchResultForModel, fetchArtifactById } from './artifactSearch'
+import { recallMemory, addMemoryNode, formatMemoryHitsForModel, type MemorySearchHit } from './memoryNodes'
 
 export interface ChatRequest {
   agentRole: import('./db').AgentRole
@@ -60,7 +61,7 @@ export interface ChatRequest {
 }
 
 /** The tool names we recognise. Used to filter text-based calls. */
-const KNOWN_TOOL_NAMES = ['web_search', 'fetch_url', 'search_artifacts', 'fetch_artifact'] as const
+const KNOWN_TOOL_NAMES = ['web_search', 'fetch_url', 'search_artifacts', 'fetch_artifact', 'recall_memory'] as const
 type KnownToolName = (typeof KNOWN_TOOL_NAMES)[number]
 
 function safeJsonParse<T = any>(s: string, fallback: T): T {
@@ -630,6 +631,7 @@ export async function rerunMissedToolCall(opts: {
   | { name: 'fetch_url'; status: 'ok' | 'error'; result: Awaited<ReturnType<typeof runFetchUrlTool>> }
   | { name: 'search_artifacts'; status: 'ok' | 'error'; result: Awaited<ReturnType<typeof runSearchArtifactsTool>> }
   | { name: 'fetch_artifact'; status: 'ok' | 'error'; result: Awaited<ReturnType<typeof runFetchArtifactTool>> }
+  | { name: 'recall_memory'; status: 'ok' | 'error'; result: { ok: boolean; query: string; count: number; memories?: string; hits?: any[]; error?: string } }
   | { name: string; status: 'error'; result: { error: string } }
 > {
   const { name, args, signal } = opts
@@ -670,6 +672,15 @@ export async function rerunMissedToolCall(opts: {
     const r = await runFetchArtifactTool({ id: args?.id, maxChars: args?.maxChars })
     return { name: 'fetch_artifact', status: r.ok ? 'ok' : 'error', result: r }
   }
+  if (name === 'recall_memory') {
+    try {
+      const hits = await recallMemory(args?.query || '', args?.maxResults)
+      const result = { ok: true, query: args?.query || '', count: hits.length, memories: formatMemoryHitsForModel(hits), hits: hits.map((h) => ({ id: h.node.id, content: h.node.content, type: h.node.type, tags: h.node.tags, createdAt: h.node.createdAt })) }
+      return { name: 'recall_memory', status: 'ok', result }
+    } catch (e: any) {
+      return { name: 'recall_memory', status: 'error', result: { ok: false, query: args?.query || '', count: 0, error: e?.message || String(e) } }
+    }
+  }
   return { name, status: 'error', result: { error: `Unknown tool: ${name}` } }
 }
 
@@ -701,8 +712,18 @@ const NEWS_HINTS = /\b(today|yesterday|this week|this month|latest|recent|breaki
  * Returns the full assistant text when done.
  */
 export async function runChat(req: ChatRequest, cb: StreamCallbacks): Promise<string> {
-  const company = (await getCompany()) || ({} as any)
-  const systemPrompt = buildSystemPrompt(req.agentRole, company, req.verbList)
+  const [company, profileRow, digestRow] = await Promise.all([
+    getCompany(),
+    getFounderProfile(),
+    getMemoryDigest(),
+  ])
+  const systemPrompt = buildSystemPrompt(
+    req.agentRole,
+    company || ({} as any),
+    req.verbList,
+    profileRow?.content,
+    digestRow?.content
+  )
 
   // Helper: emit a status step from inside tool execution. Steps are local to
   // this chat turn (lives in the assistant message's `steps` array).
@@ -1076,6 +1097,72 @@ export async function runChat(req: ChatRequest, cb: StreamCallbacks): Promise<st
       },
     })
 
+    // -- Tool: recall_memory ------------------------------------------------
+    // Search the long-term archival memory tier (free-form nodes extracted
+    // from past conversations). Called when the founder references something
+    // from a previous session that isn't in the current system prompt.
+    const recallMemoryTool = tool({
+      description:
+        "Search long-term memory for context from past conversations. Call this when the founder references something from a previous session ('we talked about...', 'remember when...', 'what was my decision on...') or when the system prompt context doesn't cover the asked topic and search_artifacts returned nothing useful. Uses BM25 search over free-form memory nodes archived from previous chats.",
+      inputSchema: z.object({
+        query: z.string().describe('3-8 keywords to search for in long-term memory.'),
+        maxResults: z.number().int().min(1).max(10).optional().describe('Max nodes to return (default 6).'),
+      }),
+      onInputAvailable: ({ input, toolCallId }) => {
+        req.onToolCall?.({ toolCallId, name: 'recall_memory', args: input, status: 'pending' })
+        emitStep({
+          id: claimStepId(toolCallId, 'memory'),
+          label: 'Searching memory',
+          status: 'active',
+          detail: input.query,
+        })
+      },
+      execute: async ({ query, maxResults }, options) => {
+        const stepId = claimStepId(options.toolCallId, 'memory')
+        if (options.abortSignal?.aborted) {
+          emitStep({ id: stepId, label: 'Searching memory', status: 'done', detail: 'aborted' })
+          throw new DOMException('Aborted', 'AbortError')
+        }
+        const start = Date.now()
+        let hits: MemorySearchHit[] = []
+        let errorMsg: string | undefined
+        try {
+          hits = await recallMemory(query, maxResults ?? 6)
+        } catch (e: any) {
+          errorMsg = e?.message || String(e)
+        }
+        const tookMs = Date.now() - start
+        const callResult = {
+          ok: !errorMsg,
+          tookMs,
+          query,
+          count: hits.length,
+          hits: hits.map((h) => ({
+            id: h.node.id,
+            content: h.node.content,
+            type: h.node.type,
+            tags: h.node.tags,
+            createdAt: h.node.createdAt,
+          })),
+        }
+        req.onToolCall?.({
+          toolCallId: options.toolCallId,
+          name: 'recall_memory',
+          args: { query, maxResults },
+          result: callResult,
+          status: errorMsg ? 'error' : 'ok',
+        })
+        emitStep({
+          id: stepId,
+          label: 'Searching memory',
+          status: errorMsg ? 'error' : 'done',
+          detail: errorMsg || `${hits.length} memor${hits.length === 1 ? 'y' : 'ies'} recalled`,
+        })
+        if (errorMsg) return { error: errorMsg, memories: '', count: 0, query }
+        return { memories: formatMemoryHitsForModel(hits), count: hits.length, query }
+      },
+    })
+
     // Map our messages to AI SDK format
     const messages: ModelMessage[] = req.messages
       .filter((m) => m.role !== 'system')
@@ -1097,7 +1184,7 @@ export async function runChat(req: ChatRequest, cb: StreamCallbacks): Promise<st
       model: lm,
       system: systemPrompt,
       messages,
-      tools: { web_search: searchTool, fetch_url: fetchTool, search_artifacts: searchArtifactsTool, fetch_artifact: fetchArtifactTool },
+      tools: { web_search: searchTool, fetch_url: fetchTool, search_artifacts: searchArtifactsTool, fetch_artifact: fetchArtifactTool, recall_memory: recallMemoryTool },
       stopWhen: stepCountIs(5),
       abortSignal: req.signal,
       // Only pass providerOptions when the model is reasoning-capable. Some
@@ -1238,7 +1325,7 @@ Be conservative. Only extract things the user actually said, not things the AI g
 export async function extractMemory(
   provider: ProviderId,
   model: string,
-  recentMessages: { role: 'user' | 'assistant'; content: string }[],
+  recentMessages: { role: 'user' | 'assistant' | 'system'; content: string }[],
   signal?: AbortSignal
 ): Promise<MemoryExtraction | null> {
   if (provider === 'browser-ai') {
@@ -1265,6 +1352,139 @@ export async function extractMemory(
     return parsed as MemoryExtraction
   } catch (e) {
     console.warn('[memory] extraction failed:', e)
+    return null
+  }
+}
+
+/** Auto-compact when uncompacted nodes reach this count. */
+const AUTO_COMPACT_THRESHOLD = 40
+
+const ARCHIVAL_EXTRACTION_SYSTEM = `You are a memory archivist. Given a recent conversation between an AI cofounder and a founder, extract 0-5 durable facts worth storing as long-term memories.
+
+Return a JSON array (may be empty []): [{ "content": "...", "type": "insight|decision|context|metric|question|learning", "tags": ["tag1", "tag2"], "importance": 0.0-1.0 }]
+
+Type guide:
+- insight: a realization about their business or market
+- decision: a concrete choice the founder made
+- context: background about the business or founder
+- metric: a specific number or measurement
+- question: an open question surfaced (without answer yet)
+- learning: something learned about customers, competitors, or market
+
+Importance: 0.3=low, 0.5=standard, 0.7=high, 1.0=critical decision or constraint
+Tags: 1-3 short lowercase keywords (e.g. "pricing", "customer", "mvp", "fundraising")
+
+Rules:
+- Only extract things the founder actually said or clearly decided — do not infer
+- Skip generic advice from the AI
+- If nothing is worth long-term storage, return []`
+
+/**
+ * Run a second LLM pass after a conversation turn to extract free-form
+ * memory nodes into the archival tier. Auto-saved without user approval.
+ * Returns the number of nodes saved.
+ */
+export async function extractArchivalMemories(
+  provider: ProviderId,
+  model: string,
+  recentMessages: { role: 'user' | 'assistant'; content: string }[],
+  conversationId: string,
+  signal?: AbortSignal
+): Promise<number> {
+  if (provider === 'browser-ai') return 0
+  try {
+    const lm = await getModel(provider, model)
+    const transcript = recentMessages.map((m) => `${m.role.toUpperCase()}: ${m.content}`).join('\n\n')
+    const result = await streamText({
+      model: lm,
+      system: ARCHIVAL_EXTRACTION_SYSTEM,
+      prompt: `Recent conversation:\n\n${transcript}\n\nReturn the JSON array.`,
+      abortSignal: signal,
+    })
+    const text = await result.text
+    const match = text.match(/\[[\s\S]*\]/)
+    if (!match) return 0
+    const parsed = JSON.parse(match[0])
+    if (!Array.isArray(parsed) || parsed.length === 0) return 0
+    const VALID_TYPES = ['insight', 'decision', 'context', 'metric', 'question', 'learning']
+    let saved = 0
+    for (const item of parsed) {
+      if (!item.content || typeof item.content !== 'string') continue
+      const type = VALID_TYPES.includes(item.type) ? item.type : 'context'
+      const tags = Array.isArray(item.tags) ? item.tags.filter((t: any) => typeof t === 'string').slice(0, 4) : []
+      const importance = typeof item.importance === 'number' ? Math.max(0, Math.min(1, item.importance)) : 0.5
+      await addMemoryNode(item.content, type as any, tags, conversationId, importance)
+      saved++
+    }
+
+    // Auto-compact when uncompacted node count crosses the threshold.
+    // Fire-and-forget — doesn't affect the return value or block the caller.
+    if (saved > 0) {
+      const allNodes = await db.memoryNodes.toArray()
+      const uncompactedCount = allNodes.filter((n) => !n.compacted).length
+      if (uncompactedCount >= AUTO_COMPACT_THRESHOLD) {
+        compactMemory(provider, model, signal).catch((e) =>
+          console.warn('[memory] auto-compaction failed:', e)
+        )
+      }
+    }
+
+    return saved
+  } catch (e) {
+    console.warn('[memory] archival extraction failed:', e)
+    return 0
+  }
+}
+
+const COMPACT_SYSTEM = `You are a memory compactor. Given a list of memory nodes from past conversations, write a concise prose summary (max 400 words) that captures the most important facts, decisions, and context about this founder and their business.
+
+Write in present tense, first-person perspective (as if writing about the founder). Include:
+- Key decisions made
+- Business context and stage
+- Important constraints, blockers, or goals
+- Insights about their market or customers
+- Quantitative facts (metrics, targets, pricing)
+
+Be dense and specific. Omit generic statements. This text will be injected into every future conversation as long-term memory.`
+
+/**
+ * Compact all uncompacted memory nodes into the digest (memory.md).
+ * Marks processed nodes as compacted. Returns the new digest content.
+ */
+export async function compactMemory(
+  provider: ProviderId,
+  model: string,
+  signal?: AbortSignal
+): Promise<string | null> {
+  if (provider === 'browser-ai') return null
+  try {
+    const all = await db.memoryNodes.toArray()
+    const uncompacted = all.filter((n) => !n.compacted)
+    if (uncompacted.length === 0) return null
+
+    const lm = await getModel(provider, model)
+    const nodeList = uncompacted
+      .map((n, i) => {
+        const date = new Date(n.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        return `[${i + 1}] (${n.type}, ${date}) ${n.content}`
+      })
+      .join('\n')
+
+    const result = await streamText({
+      model: lm,
+      system: COMPACT_SYSTEM,
+      prompt: `Memory nodes to compact:\n\n${nodeList}\n\nWrite the prose digest.`,
+      abortSignal: signal,
+    })
+    const digest = await result.text
+    if (!digest.trim()) return null
+
+    // Mark all processed nodes as compacted and save the new digest
+    await Promise.all(uncompacted.map((n) => db.memoryNodes.update(n.id, { compacted: true })))
+    await updateMemoryDigest(digest.trim(), uncompacted.length)
+    return digest.trim()
+  } catch (e) {
+    console.warn('[memory] compaction failed:', e)
     return null
   }
 }

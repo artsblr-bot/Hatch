@@ -4,7 +4,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db, ensureSettings, ensureCompany, resetAllData } from '@/lib/db'
 import { unwrapKeyWithPassphrase, setUnlockedKey, isUnlocked, lock } from '@/lib/crypto'
 import { useToast } from '@/components/Toast'
-import { Eye, EyeOff, ArrowRight, Sparkles, AlertTriangle, KeyRound, Trash2, Loader2 } from 'lucide-react'
+import { Eye, EyeOff, Sparkles, AlertTriangle, KeyRound, Trash2, Loader2 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { FloatingMark } from '@/components/FloatingMark'
 import { AmbientAurora } from '@/components/AmbientAurora'
@@ -12,6 +12,15 @@ import { ParticleField } from '@/components/ParticleField'
 import { cn } from '@/lib/utils'
 
 const RESET_CONFIRM_PHRASE = 'RESET MY VAULT'
+
+function vaultGreeting(): string {
+  const h = new Date().getHours()
+  if (h < 5) return 'Still building?'
+  if (h < 12) return 'Good morning.'
+  if (h < 17) return 'Good afternoon.'
+  if (h < 20) return 'Good evening.'
+  return 'Late night mode.'
+}
 
 export function Vault() {
   const settings = useLiveQuery(() => db.settings.get('singleton'), [])
@@ -75,9 +84,10 @@ export function Vault() {
         className="relative w-full max-w-md rounded-3xl border border-border bg-bg-subtle/60 p-8 shadow-soft backdrop-blur"
       >
         <FloatingMark size={56} halo breathe float />
-        <h1 className="mt-5 font-serif text-2xl font-medium tracking-tight">Unlock your vault</h1>
+        <p className="mt-5 text-sm font-medium text-fg-muted">{vaultGreeting()}</p>
+        <h1 className="mt-1 font-serif text-2xl font-medium tracking-tight">Welcome back.</h1>
         <p className="mt-1.5 text-sm text-fg-muted">
-          Enter your passphrase to decrypt your business data, conversations, and artifacts.
+          Enter your password to pick up where you left off.
         </p>
 
         <div className="mt-6 space-y-3">
@@ -87,7 +97,7 @@ export function Vault() {
               value={passphrase}
               onChange={(e) => setPassphrase(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && unlock()}
-              placeholder="Your passphrase"
+              placeholder="Your password"
               autoComplete="current-password"
               autoFocus
               className="w-full rounded-xl border border-border bg-bg px-3 py-2.5 pr-10 text-sm focus:border-fg/20 focus:outline-none focus:ring-2 focus:ring-accent/20"
@@ -104,8 +114,7 @@ export function Vault() {
             disabled={!passphrase || unlocking}
             className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-accent px-4 py-2.5 text-sm font-medium text-accent-fg transition hover:shadow-glow focus-ring disabled:opacity-50"
           >
-            {unlocking ? 'Unlocking…' : 'Unlock'}
-            <ArrowRight className="h-4 w-4" />
+            {unlocking ? 'Opening your workspace…' : 'Enter →'}
           </button>
         </div>
 
@@ -116,7 +125,7 @@ export function Vault() {
               className="inline-flex items-center gap-1.5 text-[12px] text-fg-muted transition hover:text-fg focus-ring rounded-md"
             >
               <KeyRound className="h-3.5 w-3.5" />
-              Forgot your passphrase?
+              Forgot your password?
             </button>
           ) : (
             <VaultResetPanel
@@ -139,7 +148,7 @@ export function Vault() {
         {!showReset && (
           <div className="mt-3 flex items-center gap-2 text-[11px] text-fg-subtle">
             <Sparkles className="h-3 w-3" />
-            <span>Your data is encrypted in this browser. We can't see it.</span>
+            <span>Everything stays on your device. Private by design.</span>
           </div>
         )}
       </motion.div>

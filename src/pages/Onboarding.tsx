@@ -1,33 +1,38 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { motion, AnimatePresence } from 'framer-motion'
 import { db, updateSettings, updateCompany } from '@/lib/db'
-import { detectBrowserAI } from '@/lib/providers'
 import { generateDataKey, wrapKeyWithPassphrase, setUnlockedKey, hashPassphrase, encrypt } from '@/lib/crypto'
 import { useToast } from '@/components/Toast'
 import { FloatingMark } from '@/components/FloatingMark'
 import { AmbientAurora } from '@/components/AmbientAurora'
 import { ParticleField } from '@/components/ParticleField'
 import { WordmarkReveal } from '@/components/WordmarkReveal'
+import { ConfettiBurst } from '@/components/ConfettiBurst'
 import { cn } from '@/lib/utils'
 
 const STEPS = [
   { id: 'welcome', label: 'Welcome' },
-  { id: 'setup', label: 'Setup' },
-  { id: 'business', label: 'Your business' },
-  { id: 'ready', label: 'Ready' },
+  { id: 'vault',   label: 'Password' },
+  { id: 'business', label: 'Your idea' },
+  { id: 'engine',  label: 'AI engine' },
+  { id: 'ready',   label: 'Ready' },
 ]
+
+// Direction-aware slide variants — forward = slide right-to-left, back = left-to-right
+const slideVariants = {
+  enter: (dir: number) => ({ opacity: 0, x: dir * 42 }),
+  center: { opacity: 1, x: 0, transition: { duration: 0.26, ease: [0.16, 1, 0.3, 1] } },
+  exit: (dir: number) => ({ opacity: 0, x: dir * -28, transition: { duration: 0.18, ease: 'easeIn' } }),
+}
 
 export function Onboarding() {
   const settings = useLiveQuery(() => db.settings.get('singleton'), [])
   const [step, setStep] = useState(0)
-  const [browserAI, setBrowserAI] = useState<{ available: boolean; reason?: string } | null>(null)
+  const [direction, setDirection] = useState(1)
+  const [dek, setDek] = useState<CryptoKey | null>(null)
   const navigate = useNavigate()
-
-  useEffect(() => {
-    detectBrowserAI().then(setBrowserAI)
-  }, [])
 
   useEffect(() => {
     if (settings?.hasOnboarded) navigate('/')
@@ -35,51 +40,68 @@ export function Onboarding() {
 
   if (!settings) return null
 
-  const next = () => setStep((s) => Math.min(STEPS.length - 1, s + 1))
-  const prev = () => setStep((s) => Math.max(0, s - 1))
+  const next = () => { setDirection(1);  setStep((s) => Math.min(STEPS.length - 1, s + 1)) }
+  const prev = () => { setDirection(-1); setStep((s) => Math.max(0, s - 1)) }
+
+  const progress = step / (STEPS.length - 1)
 
   return (
     <div className="relative grid min-h-screen place-items-center overflow-hidden bg-bg px-4 py-8 text-fg">
       <AmbientAurora intensity={2} color="orange" />
-      <div className="pointer-events-none absolute inset-0 opacity-[0.04] bg-dot-grid bg-dot-grid" />
+      <div className="pointer-events-none absolute inset-0 opacity-[0.04] bg-dot-grid" />
+
       <div className="relative w-full max-w-2xl">
-        <div className="mb-8 flex items-center justify-center gap-1.5">
-          {STEPS.map((s, i) => (
-            <div
-              key={s.id}
-              className={cn(
-                'h-1 rounded-full transition-all duration-300',
-                i === step ? 'w-8 bg-accent' : i < step ? 'w-4 bg-accent/40' : 'w-2 bg-border'
-              )}
+        {/* Progress bar + step counter */}
+        <div className="mb-6 flex items-center gap-3">
+          <div className="flex-1 overflow-hidden rounded-full bg-border/50 h-1">
+            <motion.div
+              className="h-full rounded-full bg-accent"
+              animate={{ width: `${progress * 100}%` }}
+              transition={{ type: 'spring', stiffness: 120, damping: 20 }}
             />
-          ))}
+          </div>
+          <span className="flex-shrink-0 text-[11px] tabular-nums text-fg-subtle">
+            {step + 1} / {STEPS.length}
+          </span>
         </div>
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={step}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -12 }}
-            transition={{ duration: 0.2 }}
-            className="rounded-3xl border border-border bg-bg-subtle/40 p-8 shadow-soft"
-          >
-            {step === 0 && <WelcomeStep onNext={next} browserAIAvailable={!!browserAI?.available} />}
-            {step === 1 && <SetupStep onNext={next} onBack={prev} browserAIAvailable={!!browserAI?.available} />}
-            {step === 2 && <BusinessStep onNext={next} onBack={prev} />}
-            {step === 3 && (
-              <ReadyStep
-                onDone={async () => {
-                  await updateSettings({ hasOnboarded: true })
-                  navigate('/')
-                }}
-              />
-            )}
-          </motion.div>
-        </AnimatePresence>
+
+        {/* Step card */}
+        <div className="relative overflow-hidden rounded-3xl border border-border bg-bg-subtle/40 shadow-soft">
+          <AnimatePresence mode="wait" custom={direction}>
+            <motion.div
+              key={step}
+              custom={direction}
+              variants={slideVariants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              className="p-8"
+            >
+              {step === 0 && <WelcomeStep onNext={next} />}
+              {step === 1 && (
+                <VaultStep onNext={(key) => { setDek(key); next() }} onBack={prev} />
+              )}
+              {step === 2 && <BusinessStep onNext={next} onBack={prev} />}
+              {step === 3 && <EngineStep dek={dek!} onNext={next} onBack={prev} />}
+              {step === 4 && (
+                <ReadyStep
+                  onDone={async () => {
+                    await updateSettings({ hasOnboarded: true })
+                    navigate('/')
+                  }}
+                />
+              )}
+            </motion.div>
+          </AnimatePresence>
+        </div>
       </div>
     </div>
   )
 }
+
+// ---------------------------------------------------------------------------
+// Shared icons
+// ---------------------------------------------------------------------------
 
 function CheckIcon() {
   return (
@@ -105,169 +127,164 @@ function ArrowLeftIcon() {
   )
 }
 
-function WelcomeStep({ onNext, browserAIAvailable }: { onNext: () => void; browserAIAvailable: boolean }) {
+function PrimaryBtn({
+  onClick, disabled, children,
+}: { onClick?: () => void; disabled?: boolean; children: ReactNode }) {
+  return (
+    <motion.button
+      onClick={onClick}
+      disabled={disabled}
+      whileTap={disabled ? {} : { scale: 0.94 }}
+      transition={{ type: 'spring', stiffness: 500, damping: 22 }}
+      className="inline-flex items-center gap-1.5 rounded-2xl bg-accent px-5 py-2.5 text-sm font-medium text-accent-fg transition hover:shadow-glow focus-ring disabled:opacity-50"
+    >
+      {children}
+    </motion.button>
+  )
+}
+
+function SecondaryBtn({ onClick, children }: { onClick?: () => void; children: ReactNode }) {
+  return (
+    <motion.button
+      onClick={onClick}
+      whileTap={{ scale: 0.96 }}
+      className="inline-flex items-center gap-1.5 rounded-2xl px-4 py-2 text-sm text-fg-muted transition hover:bg-bg-muted focus-ring"
+    >
+      {children}
+    </motion.button>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Step 0 — Welcome
+// ---------------------------------------------------------------------------
+
+const BULLET_ITEMS = [
+  { strong: 'No account needed.', rest: ' Everything runs in your browser — nothing goes to our servers.' },
+  { strong: '100% private.', rest: ' Your data is encrypted and stored only on this device.' },
+  { strong: 'Free to start.', rest: ' Connect a free API key from NVIDIA or Groq and you\'re off.' },
+]
+
+function WelcomeStep({ onNext }: { onNext: () => void }) {
   return (
     <div>
+      {/* Logo with spring entrance */}
       <div className="relative">
         <div className="absolute -inset-10 -z-10">
-          <ParticleField count={14} color="orange" energy={1} />
+          <ParticleField count={16} color="orange" energy={1} />
         </div>
-        <FloatingMark size={64} halo breathe float />
+        <motion.div
+          initial={{ scale: 0.5, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ type: 'spring', stiffness: 260, damping: 18, delay: 0.05 }}
+        >
+          <FloatingMark size={64} halo breathe float />
+        </motion.div>
       </div>
-      <h1 className="mt-6 font-serif text-3xl font-medium tracking-tight">
-        Hi. I'm <WordmarkReveal text="hatch" size={32} highlight="text-accent" />.
-      </h1>
-      <p className="mt-2 text-fg-muted text-pretty">
-        I'm a team of four AI cofounders that actually know your business. I'll remember what you said last week, draft real artifacts, and never let a week slip by without a plan.
-      </p>
-      <ul className="mt-6 space-y-2.5 text-sm text-fg-muted">
-        <li className="flex items-start gap-2.5">
-          <CheckIcon />
-          <span><strong className="text-fg">No signup, no credit card.</strong> {browserAIAvailable ? "You can chat with me right now, for free, using your browser's built-in AI." : 'Add a free key from Groq in 30 seconds and we are off.'}</span>
-        </li>
-        <li className="flex items-start gap-2.5">
-          <CheckIcon />
-          <span><strong className="text-fg">100% private.</strong> Your data stays in this browser. Encrypted with a passphrase only you know.</span>
-        </li>
-        <li className="flex items-start gap-2.5">
-          <CheckIcon />
-          <span><strong className="text-fg">BYOK.</strong> Bring your own key from OpenAI, Anthropic, NVIDIA NIM, or use the free in-browser model.</span>
-        </li>
+
+      {/* Headline */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.12, duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+      >
+        <h1 className="mt-6 font-serif text-3xl font-medium tracking-tight">
+          Hi. I'm <WordmarkReveal text="hatch" size={32} highlight="text-accent" />.
+        </h1>
+        <p className="mt-2 text-fg-muted text-pretty">
+          Your AI cofounder — strategy, product, marketing, and finance. I remember everything, draft real documents, and keep you moving week by week.
+        </p>
+      </motion.div>
+
+      {/* Setup time badge */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.85 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ delay: 0.22, type: 'spring', stiffness: 300, damping: 20 }}
+        className="mt-5 inline-flex items-center gap-1.5 rounded-full border border-border bg-bg-subtle/60 px-3 py-1 text-[11px] text-fg-muted"
+      >
+        ⏱ Takes about 2 minutes
+      </motion.div>
+
+      {/* Staggered bullet points */}
+      <ul className="mt-5 space-y-2.5 text-sm text-fg-muted">
+        {BULLET_ITEMS.map((item, i) => (
+          <motion.li
+            key={i}
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.28 + i * 0.1, duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+            className="flex items-start gap-2.5"
+          >
+            <CheckIcon />
+            <span><strong className="text-fg">{item.strong}</strong>{item.rest}</span>
+          </motion.li>
+        ))}
       </ul>
+
       <div className="mt-8 flex justify-end">
-        <button
+        <motion.button
           onClick={onNext}
-          className="inline-flex items-center gap-1.5 rounded-2xl bg-accent px-5 py-2.5 text-sm font-medium text-accent-fg transition hover:shadow-glow focus-ring"
+          whileTap={{ scale: 0.94 }}
+          whileHover={{ scale: 1.02 }}
+          transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+          // Idle pulse to draw the eye
+          animate={{ boxShadow: [
+            '0 0 0 0 hsl(var(--accent)/0)',
+            '0 0 0 8px hsl(var(--accent)/0.15)',
+            '0 0 0 0 hsl(var(--accent)/0)',
+          ]}}
+          style={{ animationIterationCount: 'infinite' }}
+          className="inline-flex items-center gap-1.5 rounded-2xl bg-accent px-5 py-2.5 text-sm font-medium text-accent-fg focus-ring"
         >
           Let's go
           <ArrowRightIcon />
-        </button>
+        </motion.button>
       </div>
     </div>
   )
 }
 
-function ProviderPick({
-  selected,
-  onClick,
-  title,
-  description,
-  badge,
-  needsKey,
-  apiKey,
-  onApiKey,
-  helpUrl,
-  keyPlaceholder,
-}: {
-  selected: boolean
-  onClick: () => void
-  title: string
-  description: string
-  badge?: string
-  needsKey?: boolean
-  apiKey?: string
-  onApiKey?: (v: string) => void
-  helpUrl?: string
-  keyPlaceholder?: string
-}) {
-  return (
-    <div
-      onClick={onClick}
-      className={cn(
-        'cursor-pointer rounded-xl border p-3 transition',
-        selected ? 'border-accent/40 bg-accent/10' : 'border-border bg-bg-subtle/30 hover:bg-bg-muted'
-      )}
-    >
-      <div className="flex items-start gap-2.5">
-        <div className={cn('mt-0.5 grid h-4 w-4 flex-shrink-0 place-items-center rounded-full border-2', selected ? 'border-accent bg-accent' : 'border-border')}>
-          {selected && <div className="h-1.5 w-1.5 rounded-full bg-accent-fg" />}
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <div className="text-sm font-medium">{title}</div>
-            {badge && <span className="rounded-full bg-success/15 px-1.5 py-0.5 text-[10px] font-medium text-success">{badge}</span>}
-          </div>
-          <div className="text-xs text-fg-muted">{description}</div>
-          {needsKey && selected && (
-            <div className="mt-2 space-y-1" onClick={(e) => e.stopPropagation()}>
-              <div className="flex items-center gap-2">
-                <input
-                  type="password"
-                  value={apiKey || ''}
-                  onChange={(e) => onApiKey?.(e.target.value)}
-                  placeholder={keyPlaceholder || 'API key'}
-                  autoComplete="off"
-                  spellCheck={false}
-                  className="flex-1 rounded-lg border border-border bg-bg px-2.5 py-1.5 text-xs placeholder:text-fg-subtle focus:border-fg/20 focus:outline-none focus:ring-2 focus:ring-accent/20"
-                />
-                {helpUrl && (
-                  <a
-                    href={helpUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[10px] text-fg-muted hover:text-fg"
-                  >
-                    Get key →
-                  </a>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  )
+// ---------------------------------------------------------------------------
+// Step 1 — Vault
+// ---------------------------------------------------------------------------
+
+const STRENGTH_CONFIG = {
+  none:   { bars: [false, false, false], label: '',        color: 'bg-border' },
+  weak:   { bars: [true,  false, false], label: 'Too short', color: 'bg-danger' },
+  ok:     { bars: [true,  true,  false], label: 'Good',    color: 'bg-warning' },
+  strong: { bars: [true,  true,  true],  label: 'Strong',  color: 'bg-success' },
 }
 
-function SetupStep({ onNext, onBack, browserAIAvailable }: { onNext: () => void; onBack: () => void; browserAIAvailable: boolean }) {
-  const [passphrase, setPassphrase] = useState('')
+function VaultStep({ onNext, onBack }: { onNext: (dek: CryptoKey) => void; onBack: () => void }) {
+  const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
-  const [provider, setProvider] = useState<'browser-ai' | 'groq' | 'anthropic' | 'openai'>(
-    browserAIAvailable ? 'browser-ai' : 'groq'
-  )
-  const [apiKey, setApiKey] = useState('')
+  const [show, setShow] = useState(false)
   const [working, setWorking] = useState(false)
   const toast = useToast()
 
-  const canProceed = passphrase.length >= 6 && passphrase === confirm
+  const mismatch = confirm.length > 0 && password !== confirm
+  const canProceed = password.length >= 6 && password === confirm
+
+  const strengthKey: keyof typeof STRENGTH_CONFIG =
+    password.length === 0 ? 'none'
+    : password.length < 6 ? 'weak'
+    : password.length < 10 ? 'ok'
+    : 'strong'
+
+  const sc = STRENGTH_CONFIG[strengthKey]
 
   const setup = async () => {
+    if (!canProceed) return
     setWorking(true)
     try {
       const dek = await generateDataKey()
       setUnlockedKey(dek)
-      const wrap = await wrapKeyWithPassphrase(dek, passphrase)
+      const wrap = await wrapKeyWithPassphrase(dek, password)
       await db.passphraseWrap.put({ id: 'singleton', wrap, createdAt: Date.now() })
-      const ph = await hashPassphrase(passphrase)
-
-      let defaultProvider = 'browser-ai'
-      let defaultModel = ''
-      const encryptedKeys: Record<string, any> = {}
-      if (provider !== 'browser-ai') {
-        const providerId = provider === 'groq' ? 'openai-compatible' : provider
-        const baseURL = provider === 'groq' ? 'https://api.groq.com/openai/v1' : undefined
-        const model =
-          provider === 'groq'
-            ? 'llama-3.3-70b-versatile'
-            : provider === 'anthropic'
-            ? 'claude-3-5-haiku-latest'
-            : 'gpt-4o-mini'
-        defaultProvider = providerId
-        defaultModel = model
-        encryptedKeys[providerId] = await encrypt(
-          dek,
-          JSON.stringify({ apiKey: apiKey.trim(), baseURL, model })
-        )
-      }
-
-      await updateSettings({
-        hasSetPassphrase: true,
-        passphraseHash: ph,
-        defaultProvider,
-        defaultModel,
-        encryptedKeys,
-      })
-      onNext()
+      const ph = await hashPassphrase(password)
+      await updateSettings({ hasSetPassphrase: true, passphraseHash: ph })
+      onNext(dek)
     } catch (e: any) {
       toast.error('Setup failed', e?.message)
     } finally {
@@ -277,131 +294,147 @@ function SetupStep({ onNext, onBack, browserAIAvailable }: { onNext: () => void;
 
   return (
     <div>
-      <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-accent">
-        <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M12 2L4 6v6c0 5 3.5 9.5 8 10 4.5-.5 8-5 8-10V6l-8-4z" />
-        </svg>
-        <span>Vault & provider</span>
+      <div className="flex items-center gap-3">
+        <motion.div
+          initial={{ scale: 0.6, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ type: 'spring', stiffness: 300, damping: 18 }}
+          className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl"
+          style={{ background: 'hsl(var(--accent) / 0.12)', border: '1px solid hsl(var(--accent) / 0.28)' }}
+        >
+          <svg viewBox="0 0 24 24" className="h-5 w-5 text-accent" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+          </svg>
+        </motion.div>
+        <div>
+          <h2 className="font-serif text-2xl font-medium tracking-tight">Create a password</h2>
+          <p className="text-sm text-fg-muted">Keeps your data private on this device.</p>
+        </div>
       </div>
-      <h2 className="mt-2 font-serif text-2xl font-medium tracking-tight">Set up your vault and choose an AI</h2>
-      <p className="mt-1 text-sm text-fg-muted">A passphrase encrypts everything. We can't recover it for you — write it down somewhere safe.</p>
+
+      <p className="mt-4 text-sm text-fg-muted">
+        Everything in Hatch is locked with this password. If you forget it, you'll need to reset the app — so keep it somewhere safe.
+      </p>
 
       <div className="mt-6 space-y-3">
         <div>
-          <label className="text-sm font-medium">Passphrase</label>
-          <input
-            type="password"
-            value={passphrase}
-            onChange={(e) => setPassphrase(e.target.value)}
-            placeholder="At least 6 characters"
-            autoComplete="new-password"
-            className="mt-1 w-full rounded-xl border border-border bg-bg px-3 py-2 text-sm focus:border-fg/20 focus:outline-none focus:ring-2 focus:ring-accent/20"
-          />
+          <label className="text-sm font-medium">Password</label>
+          <div className="relative mt-1.5">
+            <input
+              type={show ? 'text' : 'password'}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="At least 6 characters"
+              autoComplete="new-password"
+              autoFocus
+              className="w-full rounded-xl border border-border bg-bg px-3 py-2.5 pr-10 text-sm focus:border-fg/20 focus:outline-none focus:ring-2 focus:ring-accent/20"
+            />
+            <button type="button" tabIndex={-1} onClick={() => setShow((v) => !v)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-fg-subtle transition hover:text-fg">
+              {show
+                ? <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                : <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              }
+            </button>
+          </div>
+
+          {/* Animated strength meter */}
+          <AnimatePresence>
+            {strengthKey !== 'none' && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="mt-2 flex items-center gap-2 overflow-hidden"
+              >
+                <div className="flex gap-0.5">
+                  {sc.bars.map((filled, i) => (
+                    <motion.div
+                      key={i}
+                      className={cn('h-1 w-7 rounded-full', filled ? sc.color : 'bg-border')}
+                      initial={{ scaleX: 0 }}
+                      animate={{ scaleX: filled ? 1 : 1 }}
+                      transition={{ delay: i * 0.06, type: 'spring', stiffness: 300, damping: 22 }}
+                    />
+                  ))}
+                </div>
+                <span className="text-[11px] text-fg-subtle">{sc.label}</span>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
+
         <div>
-          <label className="text-sm font-medium">Confirm passphrase</label>
+          <label className="text-sm font-medium">Confirm password</label>
           <input
-            type="password"
+            type={show ? 'text' : 'password'}
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && canProceed) setup() }}
             placeholder="Type it again"
             autoComplete="new-password"
-            className="mt-1 w-full rounded-xl border border-border bg-bg px-3 py-2 text-sm focus:border-fg/20 focus:outline-none focus:ring-2 focus:ring-accent/20"
+            className={cn(
+              'mt-1.5 w-full rounded-xl border bg-bg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 transition',
+              mismatch ? 'border-danger/40 focus:ring-danger/20' : 'border-border focus:border-fg/20 focus:ring-accent/20'
+            )}
           />
-          {confirm && passphrase !== confirm && (
-            <div className="mt-1 text-[11px] text-danger">Passphrases don't match.</div>
-          )}
-        </div>
-      </div>
-
-      <div className="mt-6">
-        <label className="text-sm font-medium">AI provider</label>
-        <p className="mt-0.5 text-xs text-fg-muted">You can change this later in Settings.</p>
-        <div className="mt-2 space-y-1.5">
-          {browserAIAvailable && (
-            <ProviderPick
-              selected={provider === 'browser-ai'}
-              onClick={() => setProvider('browser-ai')}
-              title="Use my browser's built-in AI"
-              description="Free, no key needed. Best for getting started."
-              badge="Free"
-            />
-          )}
-          <ProviderPick
-            selected={provider === 'groq'}
-            onClick={() => setProvider('groq')}
-            title="Groq (free tier)"
-            description="Llama 3.3 70B, very fast. Free to start."
-            badge="Free"
-            needsKey
-            apiKey={apiKey}
-            onApiKey={setApiKey}
-            helpUrl="https://console.groq.com/keys"
-            keyPlaceholder="gsk_..."
-          />
-          <ProviderPick
-            selected={provider === 'anthropic'}
-            onClick={() => setProvider('anthropic')}
-            title="Anthropic Claude"
-            description="Best long-form reasoning. Paid."
-            needsKey
-            apiKey={apiKey}
-            onApiKey={setApiKey}
-            helpUrl="https://console.anthropic.com/settings/keys"
-            keyPlaceholder="sk-ant-..."
-          />
-          <ProviderPick
-            selected={provider === 'openai'}
-            onClick={() => setProvider('openai')}
-            title="OpenAI"
-            description="GPT-4o, GPT-4.1. Paid."
-            needsKey
-            apiKey={apiKey}
-            onApiKey={setApiKey}
-            helpUrl="https://platform.openai.com/api-keys"
-            keyPlaceholder="sk-..."
-          />
+          <AnimatePresence>
+            {mismatch && (
+              <motion.p
+                initial={{ opacity: 0, y: -3 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="mt-1 text-[11px] text-danger"
+              >
+                Passwords don't match
+              </motion.p>
+            )}
+          </AnimatePresence>
         </div>
       </div>
 
       <div className="mt-8 flex justify-between">
-        <button
-          onClick={onBack}
-          className="inline-flex items-center gap-1.5 rounded-2xl px-4 py-2 text-sm text-fg-muted transition hover:bg-bg-muted focus-ring"
-        >
-          <ArrowLeftIcon />
-          Back
-        </button>
-        <button
-          onClick={setup}
-          disabled={!canProceed || (provider !== 'browser-ai' && !apiKey.trim()) || working}
-          className="inline-flex items-center gap-1.5 rounded-2xl bg-accent px-5 py-2.5 text-sm font-medium text-accent-fg transition hover:shadow-glow focus-ring disabled:opacity-50"
-        >
-          {working ? 'Setting up…' : 'Continue'}
+        <SecondaryBtn onClick={onBack}><ArrowLeftIcon />Back</SecondaryBtn>
+        <PrimaryBtn onClick={setup} disabled={!canProceed || working}>
+          {working ? 'Setting up…' : 'Set my password'}
           <ArrowRightIcon />
-        </button>
+        </PrimaryBtn>
       </div>
     </div>
   )
 }
 
+// ---------------------------------------------------------------------------
+// Step 2 — Business (Typeform-style)
+// ---------------------------------------------------------------------------
+
+const STAGE_OPTIONS = [
+  { value: 'idea' as const,       emoji: '💡', label: 'Just an idea',  sub: 'Still figuring it out' },
+  { value: 'validating' as const, emoji: '🔍', label: 'Validating',    sub: 'Testing if people want it' },
+  { value: 'building' as const,   emoji: '🔨', label: 'Building',      sub: 'Actively making it' },
+  { value: 'launched' as const,   emoji: '🚀', label: 'Already live',  sub: "It's out in the world" },
+]
+
+type Stage = typeof STAGE_OPTIONS[number]['value']
+
 function BusinessStep({ onNext, onBack }: { onNext: () => void; onBack: () => void }) {
-  const [name, setName] = useState('')
-  const [oneLiner, setOneLiner] = useState('')
-  const [icp, setIcp] = useState('')
+  const [q, setQ] = useState(0)
+  const [qDir, setQDir] = useState(1)
   const [idea, setIdea] = useState('')
+  const [icp, setIcp] = useState('')
   const [saving, setSaving] = useState(false)
   const toast = useToast()
 
-  const save = async () => {
+  const advanceQ = (delta: number) => {
+    setQDir(delta > 0 ? 1 : -1)
+    setQ((v) => Math.max(0, Math.min(2, v + delta)))
+  }
+
+  const finish = async (stage: Stage) => {
     setSaving(true)
     try {
-      await updateCompany({
-        name: name.trim(),
-        oneLiner: oneLiner.trim(),
-        icp: icp.trim(),
-        idea: idea.trim(),
-      })
+      await updateCompany({ idea: idea.trim(), icp: icp.trim(), stage })
       onNext()
     } catch (e: any) {
       toast.error('Save failed', e?.message)
@@ -412,103 +445,335 @@ function BusinessStep({ onNext, onBack }: { onNext: () => void; onBack: () => vo
 
   return (
     <div>
-      <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-accent">
-        <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1 .34-4.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 1.98-3A2.5 2.5 0 0 1 9.5 2z" />
-          <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0-.34-4.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.98-3A2.5 2.5 0 0 0 14.5 2z" />
-        </svg>
-        <span>Your business</span>
-      </div>
-      <h2 className="mt-2 font-serif text-2xl font-medium tracking-tight">Tell me what you're building</h2>
-      <p className="mt-1 text-sm text-fg-muted">This becomes part of Hatch's memory. You can edit it any time.</p>
-
-      <div className="mt-6 space-y-3">
-        <div>
-          <label className="text-sm font-medium">Business name</label>
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Hatch"
-            className="mt-1 w-full rounded-xl border border-border bg-bg px-3 py-2 text-sm focus:border-fg/20 focus:outline-none focus:ring-2 focus:ring-accent/20"
-          />
-        </div>
-        <div>
-          <label className="text-sm font-medium">One-liner</label>
-          <input
-            value={oneLiner}
-            onChange={(e) => setOneLiner(e.target.value)}
-            placeholder="A one-sentence pitch."
-            className="mt-1 w-full rounded-xl border border-border bg-bg px-3 py-2 text-sm focus:border-fg/20 focus:outline-none focus:ring-2 focus:ring-accent/20"
-          />
-        </div>
-        <div>
-          <label className="text-sm font-medium">Ideal customer</label>
-          <input
-            value={icp}
-            onChange={(e) => setIcp(e.target.value)}
-            placeholder="Who is this for? Be specific."
-            className="mt-1 w-full rounded-xl border border-border bg-bg px-3 py-2 text-sm focus:border-fg/20 focus:outline-none focus:ring-2 focus:ring-accent/20"
-          />
-        </div>
-        <div>
-          <label className="text-sm font-medium">The idea (longer)</label>
-          <textarea
-            value={idea}
-            onChange={(e) => setIdea(e.target.value)}
-            rows={4}
-            placeholder="What is it, what problem does it solve, what's the insight?"
-            className="mt-1 w-full resize-none rounded-xl border border-border bg-bg px-3 py-2 text-sm focus:border-fg/20 focus:outline-none focus:ring-2 focus:ring-accent/20"
-          />
-        </div>
+      <div className="flex items-center justify-between">
+        <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-accent">Your idea</span>
+        <span className="text-[11px] text-fg-subtle">{q + 1} of 3</span>
       </div>
 
-      <div className="mt-8 flex justify-between">
-        <button
-          onClick={onBack}
-          className="inline-flex items-center gap-1.5 rounded-2xl px-4 py-2 text-sm text-fg-muted transition hover:bg-bg-muted focus-ring"
-        >
-          <ArrowLeftIcon />
-          Back
-        </button>
-        <button
-          onClick={save}
-          disabled={saving}
-          className="inline-flex items-center gap-1.5 rounded-2xl bg-accent px-5 py-2.5 text-sm font-medium text-accent-fg transition hover:shadow-glow focus-ring disabled:opacity-50"
-        >
-          {saving ? 'Saving…' : 'Continue'}
-          <ArrowRightIcon />
-        </button>
+      <AnimatePresence mode="wait" custom={qDir}>
+        {q === 0 && (
+          <motion.div key="q0" custom={qDir} variants={slideVariants} initial="enter" animate="center" exit="exit">
+            <h2 className="mt-4 font-serif text-2xl font-medium tracking-tight">What are you building?</h2>
+            <p className="mt-1 text-sm text-fg-muted">Raw is fine — no need for a perfect pitch.</p>
+            <div className="relative mt-4">
+              <textarea
+                value={idea}
+                onChange={(e) => setIdea(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); advanceQ(1) } }}
+                rows={3}
+                autoFocus
+                placeholder="e.g. An app that helps freelancers send invoices without building a spreadsheet from scratch"
+                className="w-full resize-none rounded-xl border border-border bg-bg px-3 py-2.5 pb-6 text-sm focus:border-fg/20 focus:outline-none focus:ring-2 focus:ring-accent/20"
+              />
+              {idea.length > 0 && (
+                <div className="absolute bottom-2 right-3 text-[10px] text-fg-subtle">{idea.length}</div>
+              )}
+            </div>
+          </motion.div>
+        )}
+
+        {q === 1 && (
+          <motion.div key="q1" custom={qDir} variants={slideVariants} initial="enter" animate="center" exit="exit">
+            <h2 className="mt-4 font-serif text-2xl font-medium tracking-tight">Who is it for?</h2>
+            <p className="mt-1 text-sm text-fg-muted">A job title, a type of person, or a specific situation.</p>
+            <input
+              value={icp}
+              onChange={(e) => setIcp(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') advanceQ(1) }}
+              autoFocus
+              placeholder="e.g. Solo consultants who hate admin work"
+              className="mt-4 w-full rounded-xl border border-border bg-bg px-3 py-2.5 text-sm focus:border-fg/20 focus:outline-none focus:ring-2 focus:ring-accent/20"
+            />
+          </motion.div>
+        )}
+
+        {q === 2 && (
+          <motion.div key="q2" custom={qDir} variants={slideVariants} initial="enter" animate="center" exit="exit">
+            <h2 className="mt-4 font-serif text-2xl font-medium tracking-tight">What stage are you at?</h2>
+            <p className="mt-1 text-sm text-fg-muted">Pick one to continue.</p>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              {STAGE_OPTIONS.map((opt, i) => (
+                <motion.button
+                  key={opt.value}
+                  onClick={() => finish(opt.value)}
+                  disabled={saving}
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.07, type: 'spring', stiffness: 300, damping: 22 }}
+                  whileHover={{ scale: 1.04, y: -2 }}
+                  whileTap={{ scale: 0.96 }}
+                  className="flex flex-col items-start gap-1 rounded-xl border border-border bg-bg-subtle/30 p-4 text-left transition hover:border-accent/30 hover:bg-accent/[0.06] disabled:opacity-60"
+                >
+                  <span className="text-2xl">{opt.emoji}</span>
+                  <span className="text-sm font-semibold">{opt.label}</span>
+                  <span className="text-xs text-fg-muted">{opt.sub}</span>
+                </motion.button>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className="mt-8 flex items-center justify-between">
+        <SecondaryBtn onClick={q === 0 ? onBack : () => advanceQ(-1)}>
+          <ArrowLeftIcon />Back
+        </SecondaryBtn>
+        <div className="flex items-center gap-2">
+          {q < 2 ? (
+            <PrimaryBtn onClick={() => advanceQ(1)}>
+              Continue <ArrowRightIcon />
+            </PrimaryBtn>
+          ) : (
+            <button
+              onClick={() => finish('idea')}
+              disabled={saving}
+              className="text-sm text-fg-muted transition hover:text-fg"
+            >
+              Skip →
+            </button>
+          )}
+        </div>
       </div>
-      <div className="mt-3 text-center text-[11px] text-fg-subtle">You can fill this out later — Hatch works either way.</div>
+      {q < 2 && (
+        <p className="mt-3 text-center text-[11px] text-fg-subtle">Press Enter to continue</p>
+      )}
     </div>
   )
 }
 
-function ReadyStep({ onDone }: { onDone: () => void }) {
+// ---------------------------------------------------------------------------
+// Step 3 — Engine
+// ---------------------------------------------------------------------------
+
+const PRIMARY_PROVIDERS = [
+  { id: 'nvidia-nim' as const, name: 'NVIDIA NIM', desc: 'Llama 3.1 70B · 1,000 free requests/month', badge: 'Recommended', placeholder: 'nvapi-...', helpUrl: 'https://build.nvidia.com/explore/discover' },
+  { id: 'groq' as const,       name: 'Groq',        desc: 'Llama 3.3 70B, very fast · Free to start',  badge: 'Free',        placeholder: 'gsk_...',    helpUrl: 'https://console.groq.com/keys' },
+]
+const MORE_PROVIDERS = [
+  { id: 'anthropic' as const, name: 'Anthropic Claude', desc: 'Best for complex reasoning. Paid.', placeholder: 'sk-ant-...', helpUrl: 'https://console.anthropic.com/settings/keys' },
+  { id: 'openai' as const,    name: 'OpenAI',            desc: 'GPT-4o, GPT-4.1. Paid.',            placeholder: 'sk-...',     helpUrl: 'https://platform.openai.com/api-keys' },
+]
+
+type ProviderId = 'nvidia-nim' | 'groq' | 'anthropic' | 'openai'
+
+function EngineStep({ dek, onNext, onBack }: { dek: CryptoKey; onNext: () => void; onBack: () => void }) {
+  const [provider, setProvider] = useState<ProviderId>('nvidia-nim')
+  const [apiKey, setApiKey] = useState('')
+  const [showMore, setShowMore] = useState(false)
+  const [working, setWorking] = useState(false)
+  const toast = useToast()
+
+  useEffect(() => { setApiKey('') }, [provider])
+
+  const allProviders = [...PRIMARY_PROVIDERS, ...MORE_PROVIDERS]
+  const selected = allProviders.find((p) => p.id === provider)!
+
+  const save = async () => {
+    if (!apiKey.trim()) return
+    setWorking(true)
+    try {
+      const providerId = provider === 'groq' ? 'openai-compatible' : provider
+      const baseURL = provider === 'groq' ? 'https://api.groq.com/openai/v1' : undefined
+      const model =
+        provider === 'groq' ? 'llama-3.3-70b-versatile' :
+        provider === 'anthropic' ? 'claude-3-5-haiku-latest' :
+        provider === 'nvidia-nim' ? 'meta/llama-3.1-70b-instruct' :
+        'gpt-4o-mini'
+      const encrypted = await encrypt(dek, JSON.stringify({ apiKey: apiKey.trim(), baseURL, model }))
+      await updateSettings({ defaultProvider: providerId, defaultModel: model, encryptedKeys: { [providerId]: encrypted } })
+      onNext()
+    } catch (e: any) {
+      toast.error('Save failed', e?.message)
+    } finally {
+      setWorking(false)
+    }
+  }
+
   return (
-    <div className="text-center">
+    <div>
+      <h2 className="font-serif text-2xl font-medium tracking-tight">Choose your AI</h2>
+      <p className="mt-1 text-sm text-fg-muted">You can switch any time in Settings.</p>
+
+      <div className="mt-5 space-y-2">
+        {PRIMARY_PROVIDERS.map((p, i) => (
+          <motion.div
+            key={p.id}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.08, type: 'spring', stiffness: 300, damping: 22 }}
+          >
+            <ProviderRow {...p} selected={provider === p.id} onClick={() => setProvider(p.id)} />
+          </motion.div>
+        ))}
+      </div>
+
+      <button
+        onClick={() => setShowMore((v) => !v)}
+        className="mt-2 flex items-center gap-1.5 px-0.5 py-1.5 text-xs text-fg-muted transition hover:text-fg"
+      >
+        <svg viewBox="0 0 24 24" className={cn('h-3.5 w-3.5 transition-transform', showMore && 'rotate-90')} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="9 18 15 12 9 6" />
+        </svg>
+        {showMore ? 'Hide other options' : 'Use Anthropic or OpenAI instead'}
+      </button>
+
+      <AnimatePresence>
+        {showMore && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden"
+          >
+            <div className="space-y-2 pb-1">
+              {MORE_PROVIDERS.map((p) => (
+                <ProviderRow key={p.id} {...p} selected={provider === p.id} onClick={() => setProvider(p.id)} />
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className="mt-4">
+        <div className="flex items-center justify-between">
+          <label className="text-sm font-medium">API key for {selected.name}</label>
+          <a href={selected.helpUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-fg-muted transition hover:text-fg">
+            Get a free key →
+          </a>
+        </div>
+        <input
+          type="password"
+          value={apiKey}
+          onChange={(e) => setApiKey(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter' && apiKey.trim()) save() }}
+          placeholder={selected.placeholder}
+          autoComplete="off"
+          spellCheck={false}
+          className="mt-1.5 w-full rounded-xl border border-border bg-bg px-3 py-2.5 text-sm focus:border-fg/20 focus:outline-none focus:ring-2 focus:ring-accent/20"
+        />
+      </div>
+
+      <div className="mt-8 flex items-center justify-between">
+        <SecondaryBtn onClick={onBack}><ArrowLeftIcon />Back</SecondaryBtn>
+        <div className="flex items-center gap-3">
+          <button onClick={onNext} className="text-sm text-fg-muted transition hover:text-fg">Set up later</button>
+          <PrimaryBtn onClick={save} disabled={!apiKey.trim() || working}>
+            {working ? 'Connecting…' : 'Connect'} <ArrowRightIcon />
+          </PrimaryBtn>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ProviderRow({ name, desc, badge, selected, onClick }: { name: string; desc: string; badge?: string; selected: boolean; onClick: () => void }) {
+  return (
+    <motion.div
+      onClick={onClick}
+      whileTap={{ scale: 0.98 }}
+      className={cn(
+        'cursor-pointer rounded-xl border p-3.5 transition',
+        selected ? 'border-accent/40 bg-accent/[0.08]' : 'border-border bg-bg-subtle/30 hover:bg-bg-muted'
+      )}
+    >
+      <div className="flex items-center gap-3">
+        <div className={cn('grid h-4 w-4 flex-shrink-0 place-items-center rounded-full border-2 transition', selected ? 'border-accent bg-accent' : 'border-border')}>
+          <AnimatePresence>
+            {selected && (
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                exit={{ scale: 0 }}
+                transition={{ type: 'spring', stiffness: 500, damping: 22 }}
+                className="h-1.5 w-1.5 rounded-full bg-white"
+              />
+            )}
+          </AnimatePresence>
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium">{name}</span>
+            {badge && <span className="rounded-full bg-success/15 px-1.5 py-0.5 text-[10px] font-medium text-success">{badge}</span>}
+          </div>
+          <p className="text-xs text-fg-muted">{desc}</p>
+        </div>
+      </div>
+    </motion.div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Step 4 — Ready (celebration)
+// ---------------------------------------------------------------------------
+
+function ReadyStep({ onDone }: { onDone: () => void }) {
+  const [burst, setBurst] = useState(false)
+
+  useEffect(() => {
+    const t = setTimeout(() => setBurst(true), 380)
+    return () => clearTimeout(t)
+  }, [])
+
+  return (
+    <div className="relative text-center">
+      <ConfettiBurst active={burst} onDone={() => setBurst(false)} />
+
+      {/* Logo spring entrance */}
       <motion.div
-        initial={{ scale: 0.6, opacity: 0 }}
+        initial={{ scale: 0.4, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        transition={{ type: 'spring', damping: 18 }}
+        transition={{ type: 'spring', stiffness: 220, damping: 16 }}
         className="relative mx-auto inline-block"
       >
         <div className="absolute -inset-12 -z-10">
-          <ParticleField count={18} color="orange" energy={2} />
+          <ParticleField count={22} color="orange" energy={2} />
         </div>
-        <FloatingMark size={64} halo breathe />
+        <FloatingMark size={72} halo breathe />
       </motion.div>
-      <h1 className="mt-6 font-serif text-3xl font-medium tracking-tight">You're ready.</h1>
-      <p className="mt-2 text-fg-muted">Time to start hatching.</p>
-      <div className="mt-8 flex justify-center">
-        <button
+
+      {/* Headline stagger */}
+      <motion.h1
+        initial={{ opacity: 0, y: 14 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.18, duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+        className="mt-6 font-serif text-3xl font-medium tracking-tight"
+      >
+        You're ready.
+      </motion.h1>
+
+      <motion.p
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.28, duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+        className="mt-2 text-fg-muted"
+      >
+        Your AI cofounder is waiting. Let's build something.
+      </motion.p>
+
+      <motion.div
+        initial={{ opacity: 0, scale: 0.85 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ delay: 0.4, type: 'spring', stiffness: 260, damping: 18 }}
+        className="mt-8 flex justify-center"
+      >
+        <motion.button
           onClick={onDone}
-          className="inline-flex items-center gap-1.5 rounded-2xl bg-accent px-6 py-3 text-sm font-medium text-accent-fg transition hover:shadow-glow focus-ring"
+          whileTap={{ scale: 0.94 }}
+          whileHover={{ scale: 1.04 }}
+          // Persistent pulse draws the eye to the CTA
+          animate={{
+            boxShadow: [
+              '0 0 0 0 hsl(var(--accent)/0)',
+              '0 0 0 10px hsl(var(--accent)/0.18)',
+              '0 0 0 0 hsl(var(--accent)/0)',
+            ],
+          }}
+          transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
+          className="inline-flex items-center gap-2 rounded-2xl bg-accent px-7 py-3.5 text-sm font-semibold text-accent-fg focus-ring"
         >
-          Open the chat
-          <ArrowRightIcon />
-        </button>
-      </div>
+          Open the chat 🚀
+        </motion.button>
+      </motion.div>
     </div>
   )
 }

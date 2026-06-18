@@ -13,7 +13,7 @@ export interface ProviderKeyPlain {
   model?: string
 }
 
-export type AgentRole = 'mentor' | 'cto' | 'cmo' | 'cfo'
+export type AgentRole = 'cofounder'
 
 export interface Settings {
   id: 'singleton'
@@ -64,6 +64,17 @@ export interface PassphraseWrapRecord {
   createdAt: number
 }
 
+export interface PersonalityStyle {
+  /** Response length/depth preference, inferred from avg user message length */
+  pace: 'fast' | 'balanced' | 'thorough'
+  /** Directness vs encouragement preference */
+  tone: 'direct' | 'balanced' | 'warm'
+  /** Action-first vs think-first preference */
+  focus: 'execution' | 'balanced' | 'strategy'
+  inferredAt: number
+  sampleSize: number
+}
+
 export interface CompanyMemory {
   id: 'singleton'
   // Free-form
@@ -79,6 +90,8 @@ export interface CompanyMemory {
   // Structured
   metrics: { name: string; value: string; updatedAt: number }[]
   openQuestions: { q: string; status: 'open' | 'answered'; answer?: string; ts: number }[]
+  // Inferred from conversation patterns — used to adapt cofounder tone/style
+  personalityStyle?: PersonalityStyle
   // Meta
   createdAt: number
   updatedAt: number
@@ -223,6 +236,43 @@ export interface Task {
   proposedStrategy?: 'regex' | 'llm-fallback'
 }
 
+// ---------------------------------------------------------------------------
+// Tiered memory system (v3)
+// ---------------------------------------------------------------------------
+
+export type MemoryNodeType = 'insight' | 'decision' | 'context' | 'metric' | 'question' | 'learning'
+
+/** A single free-form memory node stored in the archival tier. */
+export interface MemoryNode {
+  id: string
+  content: string
+  type: MemoryNodeType
+  tags: string[]
+  sourceConversationId?: string
+  /** 0.0 – 1.0. Higher = more important, boosted in BM25 ranking. */
+  importance: number
+  /** Number of times the AI recalled this node via the recall_memory tool. */
+  recallCount: number
+  /** True once this node has been included in a digest compaction. */
+  compacted: boolean
+  createdAt: number
+}
+
+/** Freeform founder profile (the "user.md"). Singleton row. */
+export interface FounderProfile {
+  id: 'singleton'
+  content: string
+  updatedAt: number
+}
+
+/** Compacted prose summary of archived memory nodes (the "memory.md"). Singleton row. */
+export interface MemoryDigest {
+  id: 'singleton'
+  content: string
+  nodeCount: number
+  generatedAt: number
+}
+
 class HatchDB extends Dexie {
   settings!: Table<Settings, string>
   passphraseWrap!: Table<PassphraseWrapRecord, string>
@@ -233,6 +283,9 @@ class HatchDB extends Dexie {
   memoryEvents!: Table<MemoryEvent, string>
   checkIns!: Table<CheckIn, string>
   tasks!: Table<Task, string>
+  memoryNodes!: Table<MemoryNode, string>
+  founderProfile!: Table<FounderProfile, string>
+  memoryDigest!: Table<MemoryDigest, string>
 
   constructor() {
     super('hatch')
@@ -251,6 +304,14 @@ class HatchDB extends Dexie {
     // grouping), and dueAt (for "overdue" and "today" lookups).
     this.version(2).stores({
       tasks: 'id, status, weekOf, dueAt, createdAt, [status+dueAt]',
+    })
+    // v3: tiered memory system. memoryNodes = free-form archival nodes
+    // recalled via BM25 search. founderProfile = the "user.md" singleton.
+    // memoryDigest = the "memory.md" compacted prose digest singleton.
+    this.version(3).stores({
+      memoryNodes: 'id, type, createdAt, sourceConversationId',
+      founderProfile: 'id',
+      memoryDigest: 'id',
     })
   }
 }
@@ -271,15 +332,12 @@ export async function ensureSettings(): Promise<Settings> {
     id: 'singleton',
     defaultProvider: 'browser-ai',
     defaultModel: '',
-    defaultAgent: 'mentor',
+    defaultAgent: 'cofounder',
     encryptedKeys: {},
     searchProvider: 'duckduckgo',
     theme: 'system',
     verbLists: {
-      mentor: ['Pondering', 'Reflecting', 'Considering', 'Sitting with that', 'Musing', 'Thinking it through', 'Chewing on it', 'Weighing'],
-      cto: ['Sketching', 'Architecting', 'Diagramming', 'Wiring it up', 'Spec\'ing', 'Compiling thoughts', 'Prototyping', 'Scaffolding'],
-      cmo: ['Drafting', 'Posing', 'Wordsmithing', 'Positioning', 'Phrasing', 'Sharpening', 'Crystallizing', 'Reframing'],
-      cfo: ['Crunching', 'Modeling', 'Running the numbers', 'Stress-testing', 'Forecasting', 'Projecting', 'Spreadsheet-ing', 'Back-of-enveloping'],
+      cofounder: ['Pondering', 'Sketching', 'Drafting', 'Crunching', 'Reflecting', 'Architecting', 'Wordsmithing', 'Modeling', 'Weighing', 'Positioning', 'Forecasting', 'Thinking it through'],
     },
     passphraseHash: '',
     hasOnboarded: false,
@@ -348,4 +406,24 @@ export async function updateCompany(patch: Partial<CompanyMemory>): Promise<Comp
  */
 export async function resetAllData(): Promise<void> {
   await db.delete()
+}
+
+// ---------------------------------------------------------------------------
+// Memory tier helpers
+// ---------------------------------------------------------------------------
+
+export async function getFounderProfile(): Promise<FounderProfile | undefined> {
+  return db.founderProfile.get('singleton')
+}
+
+export async function updateFounderProfile(content: string): Promise<void> {
+  await db.founderProfile.put({ id: 'singleton', content, updatedAt: Date.now() })
+}
+
+export async function getMemoryDigest(): Promise<MemoryDigest | undefined> {
+  return db.memoryDigest.get('singleton')
+}
+
+export async function updateMemoryDigest(content: string, nodeCount: number): Promise<void> {
+  await db.memoryDigest.put({ id: 'singleton', content, nodeCount, generatedAt: Date.now() })
 }

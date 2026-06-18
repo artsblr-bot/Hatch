@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams, useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '@/lib/db'
 import { ARTIFACT_TEMPLATES, ARTIFACT_LIST } from '@/lib/artifacts'
@@ -19,8 +19,10 @@ export function Library() {
   const artifacts = useLiveQuery(() => db.artifacts.orderBy('updatedAt').reverse().toArray(), []) || []
   const [search, setSearch] = useState('')
   const [filterType, setFilterType] = useState<string>('all')
-  const [openId, setOpenId] = useState<string | null>(null)
+  const [searchParams] = useSearchParams()
+  const [openId, setOpenId] = useState<string | null>(() => searchParams.get('open'))
   const toast = useToast()
+  const navigate = useNavigate()
 
   const filtered = useMemo(() => {
     let out = artifacts
@@ -36,6 +38,12 @@ export function Library() {
     }
     return out
   }, [artifacts, search, filterType])
+
+  const typeCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    artifacts.forEach((a) => { counts[a.type] = (counts[a.type] || 0) + 1 })
+    return counts
+  }, [artifacts])
 
   const open = artifacts.find((a) => a.id === openId)
   const template = open ? ARTIFACT_TEMPLATES[open.type] : null
@@ -135,7 +143,14 @@ export function Library() {
       <div className="flex min-h-0 flex-col">
         <div className="flex-shrink-0 border-b border-border-subtle p-4">
           <div className="flex items-center justify-between">
-            <h1 className="font-serif text-2xl font-medium tracking-tight">Library</h1>
+            <div>
+              <h1 className="font-serif text-2xl font-medium tracking-tight">Library</h1>
+              {artifacts.length > 0 && (
+                <p className="mt-0.5 text-[11px] text-fg-muted tabular-nums">
+                  {artifacts.length} artifact{artifacts.length !== 1 ? 's' : ''} built
+                </p>
+              )}
+            </div>
             <div className="flex items-center gap-1.5">
               <button
                 onClick={handleSelfTest}
@@ -176,6 +191,9 @@ export function Library() {
               >
                 <span className="mr-1">{t.emoji}</span>
                 {t.name}
+                {(typeCounts[t.type] || 0) > 0 && (
+                  <span className="ml-1.5 tabular-nums opacity-50">{typeCounts[t.type]}</span>
+                )}
               </FilterChip>
             ))}
           </div>
@@ -220,11 +238,15 @@ export function Library() {
             </div>
           ) : (
             <div className="flex flex-col gap-1">
-              {filtered.map((a) => {
+              {filtered.map((a, i) => {
                 const t = ARTIFACT_TEMPLATES[a.type]
                 return (
-                  <button
+                  <motion.button
                     key={a.id}
+                    initial={{ opacity: 0, y: 5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: Math.min(i * 0.04, 0.22), duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                    whileHover={{ y: -1 }}
                     onClick={() => setOpenId(a.id)}
                     className={cn(
                       'group flex flex-col gap-1 rounded-xl border p-3 text-left transition focus-ring',
@@ -270,7 +292,7 @@ export function Library() {
                         </>
                       )}
                     </div>
-                  </button>
+                  </motion.button>
                 )
               })}
             </div>
@@ -317,10 +339,26 @@ export function Library() {
                 </div>
               ))}
             </div>
-            <div className="relative">
-              <FileText className="mx-auto h-10 w-10 text-fg-subtle" />
-              <h3 className="mt-3 text-base font-medium">Pick an artifact to view</h3>
-              <p className="mt-1 text-sm text-fg-muted">Or start a new one.</p>
+            <div className="relative text-center">
+              <h3 className="text-base font-semibold text-fg">What do you want to build?</h3>
+              <p className="mt-1 text-sm text-fg-muted">Ask your cofounder to draft one →</p>
+              <div className="mt-5 mx-auto grid max-w-xs grid-cols-2 gap-2">
+                {ARTIFACT_LIST.slice(0, 4).map((t, i) => (
+                  <motion.button
+                    key={t.type}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.06, duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                    whileHover={{ y: -2, scale: 1.03 }}
+                    whileTap={{ scale: 0.97 }}
+                    onClick={() => navigate('/chat', { state: { prefill: `Let's draft a ${t.name} for my business` } })}
+                    className="flex flex-col items-center gap-2 rounded-xl border border-border bg-bg-subtle/40 p-4 transition hover:border-accent/30 hover:bg-bg-subtle hover:shadow-glow"
+                  >
+                    <span className="text-2xl">{t.emoji}</span>
+                    <span className="text-[11px] font-medium text-fg">{t.name}</span>
+                  </motion.button>
+                ))}
+              </div>
             </div>
           </motion.div>
         )}

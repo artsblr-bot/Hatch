@@ -86,6 +86,24 @@ export default {
           '50%': { transform: 'translateX(0%) scaleX(0.7)' },
           '100%': { transform: 'translateX(100%) scaleX(0.5)' },
         },
+        'orb-breathe': {
+          '0%, 100%': { transform: 'scale(1)', boxShadow: '0 0 24px hsl(21 100% 55% / 0.18)' },
+          '50%':       { transform: 'scale(1.07)', boxShadow: '0 0 40px hsl(21 100% 55% / 0.32)' },
+        },
+        'done-glow': {
+          '0%':   { boxShadow: '0 0 0 0 hsl(21 100% 55% / 0)' },
+          '25%':  { boxShadow: '0 0 0 4px hsl(21 100% 55% / 0.18)' },
+          '100%': { boxShadow: '0 0 0 0 hsl(21 100% 55% / 0)' },
+        },
+        'check-pop': {
+          '0%':  { transform: 'scale(0) rotate(-20deg)', opacity: '0' },
+          '60%': { transform: 'scale(1.25) rotate(6deg)', opacity: '1' },
+          '100%':{ transform: 'scale(1) rotate(0deg)', opacity: '1' },
+        },
+        'chip-up': {
+          '0%':   { opacity: '0', transform: 'translateY(6px) scale(0.95)' },
+          '100%': { opacity: '1', transform: 'translateY(0) scale(1)' },
+        },
       },
       animation: {
         'fade-in': 'fade-in 200ms ease-out',
@@ -97,6 +115,10 @@ export default {
         'think-pulse': 'think-pulse 1.6s ease-in-out infinite',
         'scan-line': 'scan-line 1.8s ease-in-out infinite',
         'progress-indeterminate': 'progress-indeterminate 1.4s ease-in-out infinite',
+        'orb-breathe': 'orb-breathe 2.8s ease-in-out infinite',
+        'done-glow': 'done-glow 1.1s ease-out forwards',
+        'check-pop': 'check-pop 320ms cubic-bezier(0.16, 1, 0.3, 1) forwards',
+        'chip-up': 'chip-up 260ms cubic-bezier(0.16, 1, 0.3, 1) forwards',
       },
       backgroundImage: {
         'shimmer-gradient': 'linear-gradient(90deg, transparent, hsl(var(--fg-subtle) / 0.08), transparent)',
