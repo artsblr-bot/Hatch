@@ -68,7 +68,7 @@ export function AppShell() {
       <div className="absolute right-3 top-3 z-30 md:hidden">
         <button
           onClick={() => setSidebarOpen((o) => !o)}
-          className="grid h-9 w-9 place-items-center rounded-lg border border-border bg-bg-subtle/80 text-fg-muted backdrop-blur transition hover:bg-bg-muted focus-ring"
+          className="grid h-9 w-9 place-items-center rounded-xl border border-border bg-bg-muted/80 text-fg-muted backdrop-blur transition hover:bg-bg-muted focus-ring"
           aria-label="Toggle menu"
         >
           {sidebarOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
@@ -83,45 +83,45 @@ export function AppShell() {
         )}
       >
         {/* Brand */}
-        <div className="relative flex h-14 items-center gap-2.5 border-b border-border-subtle px-4">
+        <div className="relative flex h-16 items-center gap-3 border-b border-border-subtle px-5">
           <div className="animate-breathe">
             <HatchWordmark size={28} />
           </div>
           <div className="flex-1" />
-          <span className="text-[10px] font-medium uppercase tracking-wider text-fg-subtle">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-fg-subtle">
             AI cofounder
           </span>
-          <div className="pointer-events-none absolute -bottom-px left-4 right-4 h-px bg-gradient-to-r from-transparent via-accent/30 to-transparent" />
+          <div className="pointer-events-none absolute -bottom-px left-5 right-5 h-px bg-gradient-to-r from-transparent via-accent/30 to-transparent" />
         </div>
 
         {/* Primary nav */}
-        <nav className="flex flex-col gap-0.5 p-2">
+        <nav className="flex flex-col gap-0.5 px-3 pt-4">
           <SidebarLink to="/chat" icon={MessageSquare} label="Chat" active={location.pathname.startsWith('/chat')} />
           <SidebarLink to="/library" icon={Library} label="Library" active={location.pathname === '/library'} />
           <SidebarLink to="/memory" icon={Brain} label="Memory" active={location.pathname === '/memory'} />
         </nav>
 
         {/* New chat CTA */}
-        <div className="px-2 pt-1">
+        <div className="px-3 pt-4">
           <button
             onClick={handleNewChat}
-            className="group relative inline-flex w-full items-center justify-center gap-1.5 overflow-hidden rounded-xl bg-accent px-3 py-2 text-sm font-semibold text-accent-fg shadow-soft transition hover:shadow-glow focus-ring"
+            className="group relative inline-flex w-full items-center gap-2 overflow-hidden rounded-xl bg-accent px-3.5 py-2.5 text-sm font-semibold text-accent-fg transition hover:shadow-soft focus-ring"
           >
             <span className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/15 to-transparent transition group-hover:translate-x-full" />
-            <Plus className="h-3.5 w-3.5" />
+            <Plus className="h-4 w-4" />
             <span>New chat</span>
-            <kbd className="ml-auto rounded border border-accent-fg/30 bg-accent-fg/10 px-1 font-mono text-[10px]">⌘K</kbd>
+            <kbd className="ml-auto rounded-md border border-accent-fg/25 bg-accent-fg/10 px-1.5 py-0.5 font-mono text-[10px] tracking-tight">⌘K</kbd>
           </button>
         </div>
 
         {/* Conversations list */}
-        <div className="mt-2 flex flex-1 flex-col overflow-hidden">
-          <div className="flex items-center px-3 pb-1 pt-2.5">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-fg-subtle">Recent</span>
+        <div className="mt-6 flex flex-1 flex-col overflow-hidden">
+          <div className="flex items-center px-5 pb-2">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-fg-subtle">Recent</span>
           </div>
-          <div className="flex-1 overflow-y-auto px-2 pb-2">
+          <div className="flex-1 overflow-y-auto px-3 pb-3">
             {conversations.length === 0 ? (
-              <div className="px-3 py-6 text-center text-xs text-fg-subtle">
+              <div className="px-3 py-8 text-center text-xs text-fg-subtle">
                 No conversations yet
               </div>
             ) : (
@@ -145,21 +145,22 @@ export function AppShell() {
 
         {/* Business card */}
         {company?.name && (
-          <div className="m-2 rounded-xl border border-border-subtle bg-bg-subtle p-2.5 text-[11px]">
-            <div className="font-medium text-fg truncate">{company.name}</div>
+          <div className="mx-3 mb-1 rounded-2xl border border-border-subtle bg-bg-muted p-3.5 text-[11px]">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-fg-subtle">Venture</div>
+            <div className="mt-1.5 truncate font-serif text-base font-medium tracking-tight text-fg">{company.name}</div>
             {company.oneLiner && (
-              <div className="mt-0.5 line-clamp-2 text-fg-muted">{company.oneLiner}</div>
+              <div className="mt-1 line-clamp-2 leading-relaxed text-fg-muted">{company.oneLiner}</div>
             )}
           </div>
         )}
 
         {/* Bottom actions */}
-        <div className="border-t border-border-subtle p-2">
+        <div className="border-t border-border-subtle px-3 py-3">
           <SidebarLink to="/settings" icon={Settings} label="Settings" active={location.pathname === '/settings'} />
           {settings?.hasSetPassphrase && unlocked && (
             <button
               onClick={handleLock}
-              className="mt-1 flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-fg-muted transition hover:bg-bg-muted hover:text-fg"
+              className="mt-0.5 flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs text-fg-muted transition hover:bg-bg-muted hover:text-fg"
             >
               <Lock className="h-3.5 w-3.5" />
               <span>Lock vault</span>
@@ -197,11 +198,13 @@ function SidebarLink({ to, icon: Icon, label, active }: { to: string; icon: any;
     <NavLink
       to={to}
       className={cn(
-        'flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm transition focus-ring',
-        active ? 'bg-bg-muted text-fg' : 'text-fg-muted hover:bg-bg-muted/60 hover:text-fg'
+        'flex items-center gap-2.5 rounded-xl border border-transparent px-3 py-2 text-sm transition focus-ring',
+        active
+          ? 'border-accent/30 bg-accent/[0.06] text-fg'
+          : 'text-fg-muted hover:bg-bg-muted/60 hover:text-fg'
       )}
     >
-      <Icon className="h-4 w-4" />
+      <Icon className={cn('h-4 w-4', active ? 'text-accent' : 'text-fg-subtle')} />
       <span>{label}</span>
     </NavLink>
   )
@@ -248,7 +251,7 @@ function ConversationRow({
   if (editing) {
     return (
       <div
-        className="flex items-center gap-1 rounded-lg bg-bg-muted px-2 py-1 text-xs"
+        className="flex items-center gap-1.5 rounded-xl bg-accent/[0.06] px-2.5 py-1.5 text-xs"
         style={{ animationDelay: `${Math.min(index * 30, 240)}ms` }}
       >
         <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-accent" />
@@ -267,14 +270,14 @@ function ConversationRow({
           }}
           onBlur={commit}
           maxLength={120}
-          className="min-w-0 flex-1 rounded border border-accent/40 bg-bg px-1.5 py-0.5 text-xs text-fg focus:outline-none focus:ring-1 focus:ring-accent/40"
+          className="min-w-0 flex-1 rounded-lg border border-accent/40 bg-bg px-2 py-0.5 text-xs text-fg focus:outline-none focus:ring-1 focus:ring-accent/40"
         />
         <button
           onMouseDown={(e) => {
             e.preventDefault()
             commit()
           }}
-          className="grid h-5 w-5 flex-shrink-0 place-items-center rounded text-success hover:bg-success/10"
+          className="grid h-5 w-5 flex-shrink-0 place-items-center rounded-md text-success hover:bg-success/10"
           title="Save (Enter)"
         >
           <Check className="h-3 w-3" />
@@ -284,7 +287,7 @@ function ConversationRow({
             e.preventDefault()
             cancel()
           }}
-          className="grid h-5 w-5 flex-shrink-0 place-items-center rounded text-fg-subtle hover:bg-bg-muted hover:text-fg"
+          className="grid h-5 w-5 flex-shrink-0 place-items-center rounded-md text-fg-subtle hover:bg-bg-muted hover:text-fg"
           title="Cancel (Esc)"
         >
           <XIcon className="h-3 w-3" />
@@ -302,15 +305,15 @@ function ConversationRow({
       }}
       style={{ animationDelay: `${Math.min(index * 30, 240)}ms` }}
       className={cn(
-        'group flex animate-fade-in items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-fg-muted transition hover:bg-bg-muted hover:text-fg',
-        isActive && 'bg-bg-muted text-fg shadow-[inset_2px_0_0_0_hsl(var(--accent))]'
+        'group flex animate-fade-in items-center gap-2.5 rounded-xl px-3 py-2 text-[13px] text-fg-muted transition hover:bg-bg-muted hover:text-fg',
+        isActive && 'border border-accent/30 bg-accent/[0.06] text-fg'
       )}
       title={`${conv.title || 'Untitled'} — double-click to rename`}
     >
       <span
         className={cn(
           'h-1.5 w-1.5 flex-shrink-0 rounded-full bg-current transition',
-          isActive ? 'opacity-100 animate-breathe bg-accent text-accent' : 'opacity-60'
+          isActive ? 'opacity-100 animate-breathe bg-accent text-accent' : 'opacity-50'
         )}
       />
       <span className="flex-1 truncate">{conv.title || 'Untitled'}</span>
@@ -320,7 +323,7 @@ function ConversationRow({
           e.stopPropagation()
           setEditing(true)
         }}
-        className="grid h-5 w-5 flex-shrink-0 place-items-center rounded text-fg-subtle opacity-0 transition hover:bg-bg-muted hover:text-fg group-hover:opacity-100 focus:opacity-100"
+        className="grid h-5 w-5 flex-shrink-0 place-items-center rounded-md text-fg-subtle opacity-0 transition hover:bg-bg-muted hover:text-fg group-hover:opacity-100 focus:opacity-100"
         title="Rename"
         aria-label="Rename conversation"
       >

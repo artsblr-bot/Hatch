@@ -13,11 +13,11 @@ interface Props {
 
 export function ChatHeader({ agent, providerId, model, onModelChange, isStreaming }: Props) {
   return (
-    <header className="relative z-10 flex h-14 flex-shrink-0 items-center gap-3 border-b border-border-subtle bg-bg/80 px-5 backdrop-blur">
+    <header className="relative z-10 flex h-14 flex-shrink-0 items-center gap-3 border-b border-border-subtle bg-bg/70 px-5 backdrop-blur-md">
       {/* Agent identity — static, no dropdown */}
       <div className="flex items-center gap-2.5">
         <div
-          className="grid h-7 w-7 place-items-center rounded-lg text-base"
+          className="grid h-7 w-7 place-items-center rounded-xl text-base ring-1 ring-inset ring-border-subtle"
           style={{
             backgroundColor: `hsl(var(--agent-${agent.color}) / 0.18)`,
             color: `hsl(var(--agent-${agent.color}))`,
@@ -26,8 +26,8 @@ export function ChatHeader({ agent, providerId, model, onModelChange, isStreamin
           {agent.emoji}
         </div>
         <div>
-          <div className="text-sm font-semibold leading-tight">{agent.name}</div>
-          <div className="text-[10px] uppercase tracking-wider text-fg-subtle leading-none">{agent.role}</div>
+          <div className="font-serif text-[15px] font-medium leading-tight tracking-tight text-fg">{agent.name}</div>
+          <div className="text-[11px] uppercase tracking-[0.18em] text-fg-subtle leading-none">{agent.role}</div>
         </div>
       </div>
 
@@ -45,7 +45,7 @@ export function ChatHeader({ agent, providerId, model, onModelChange, isStreamin
 
       {/* Streaming indicator */}
       {isStreaming && (
-        <div className="flex items-center gap-1.5 text-[11px] text-fg-muted">
+        <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.18em] text-accent">
           <Loader2 className="h-3 w-3 animate-spin" />
           <span>Streaming</span>
         </div>

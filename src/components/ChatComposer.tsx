@@ -93,14 +93,14 @@ export function ChatComposer({ onSend, onStop, disabled, placeholder = 'Reply…
   }
 
   return (
-    <div className="flex-shrink-0 border-t border-border-subtle bg-bg/80 px-5 py-4 backdrop-blur">
+    <div className="flex-shrink-0 border-t border-border-subtle bg-bg/70 px-5 py-4 backdrop-blur-md">
       <div className="mx-auto max-w-3xl">
         <div
           className={cn(
-            'group relative overflow-hidden rounded-3xl border bg-bg-subtle/60 transition-all',
+            'group relative overflow-hidden rounded-2xl border bg-bg-subtle/60 transition-all',
             focused
-              ? 'border-fg/20 shadow-soft ring-2 ring-accent/20'
-              : 'border-border hover:border-fg/10'
+              ? 'border-accent/40 shadow-soft ring-1 ring-accent/20'
+              : 'border-border-subtle hover:border-border'
           )}
         >
           <textarea
@@ -119,8 +119,8 @@ export function ChatComposer({ onSend, onStop, disabled, placeholder = 'Reply…
 
           {/* Bottom toolbar */}
           <div className="absolute bottom-0 left-0 right-0 flex items-center justify-between gap-2 px-3 py-2">
-            <div className="flex items-center gap-1 text-[11px] text-fg-subtle">
-              <Sparkles className="h-3 w-3" />
+            <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.14em] text-fg-subtle">
+              <Sparkles className="h-3 w-3 text-accent" />
               <span className="hidden sm:inline">Enter to send · Shift+Enter for new line</span>
             </div>
             <div className="flex items-center gap-1.5">
@@ -191,7 +191,7 @@ export function ChatComposer({ onSend, onStop, disabled, placeholder = 'Reply…
                     <button
                       key={i}
                       onClick={() => setText(p)}
-                      className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg-subtle/40 px-3 py-1 text-xs text-fg-muted transition hover:border-border hover:bg-bg-muted hover:text-fg"
+                      className="inline-flex items-center gap-1.5 rounded-full border border-border-subtle bg-bg-subtle/40 px-3 py-1 text-xs text-fg-muted transition hover:border-accent/30 hover:bg-accent/[0.06] hover:text-fg"
                     >
                       {p}
                     </button>

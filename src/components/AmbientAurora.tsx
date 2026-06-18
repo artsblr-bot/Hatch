@@ -11,11 +11,11 @@ interface Props {
 }
 
 const PALETTES = {
-  // Warm "first-light" dawn tones — yolk amber drifting into a soft rose-gold.
-  orange: ['hsl(35, 92%, 60%)', 'hsl(22, 85%, 58%)'],
+  // Claude-editorial warm tones — coral drifting into amber, with a teal note.
+  orange: ['hsl(15, 52%, 62%)', 'hsl(38, 70%, 64%)'],
   violet: ['hsl(265, 90%, 65%)', 'hsl(290, 80%, 60%)'],
-  teal: ['hsl(174, 65%, 50%)', 'hsl(190, 80%, 55%)'],
-  mix: ['hsl(35, 92%, 60%)', 'hsl(15, 80%, 60%)', 'hsl(45, 85%, 62%)'],
+  teal: ['hsl(168, 40%, 55%)', 'hsl(190, 50%, 58%)'],
+  mix: ['hsl(15, 52%, 62%)', 'hsl(38, 70%, 64%)', 'hsl(168, 40%, 55%)'],
 } as const
 
 /**

@@ -195,7 +195,7 @@ export function Landing() {
             {!isNew && (
               <Link
                 to="/chat"
-                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg-subtle/60 px-4 py-2 text-sm font-medium text-fg-muted transition hover:bg-bg-muted hover:text-fg"
+                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg-subtle/40 px-4 py-2 text-sm font-medium text-fg-muted transition hover:border-fg/15 hover:bg-bg-muted hover:text-fg"
               >
                 <Plus className="h-3.5 w-3.5" />
                 New conversation
@@ -204,7 +204,7 @@ export function Landing() {
             {artifactCount > 0 && (
               <Link
                 to="/library"
-                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg-subtle/60 px-4 py-2 text-sm font-medium text-fg-muted transition hover:bg-bg-muted hover:text-fg"
+                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg-subtle/40 px-4 py-2 text-sm font-medium text-fg-muted transition hover:border-fg/15 hover:bg-bg-muted hover:text-fg"
               >
                 <Library className="h-3.5 w-3.5" />
                 Library · {artifactCount} {artifactCount === 1 ? 'artifact' : 'artifacts'}
@@ -231,23 +231,23 @@ export function Landing() {
           <motion.section {...fadeUp(5)}>
             <div className="flex items-center justify-between">
               <SectionLabel>Recent work</SectionLabel>
-              <Link to="/library" className="text-xs text-fg-muted transition hover:text-fg">
+              <Link to="/library" className="text-xs font-medium text-accent transition hover:text-fg">
                 See all →
               </Link>
             </div>
-            <div className="mt-3 grid gap-2 sm:grid-cols-3">
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
               {recentArtifacts.map((a) => {
                 const meta = ARTIFACT_LIST.find((al) => al.type === a.type)
                 return (
                   <Link
                     key={a.id}
                     to="/library"
-                    className="group flex flex-col gap-2 rounded-2xl border border-border bg-bg-subtle/40 p-4 transition hover:border-accent/25 hover:bg-bg-subtle"
+                    className="group flex flex-col gap-3 rounded-2xl border border-border bg-bg-subtle/40 p-5 transition hover:border-accent/30 hover:bg-bg-subtle hover:shadow-glow"
                   >
-                    <div className="text-xl">{meta?.emoji ?? '📄'}</div>
+                    <div className="text-2xl">{meta?.emoji ?? '📄'}</div>
                     <div>
-                      <div className="truncate text-sm font-medium text-fg">{a.title}</div>
-                      <div className="mt-0.5 text-[11px] text-fg-subtle">{timeAgo(a.updatedAt)}</div>
+                      <div className="truncate font-serif text-base font-medium tracking-tight text-fg">{a.title}</div>
+                      <div className="mt-1 text-[11px] uppercase tracking-[0.12em] text-fg-subtle">{timeAgo(a.updatedAt)}</div>
                     </div>
                   </Link>
                 )
@@ -277,19 +277,19 @@ function ContinueCard({ convo }: { convo: Conversation }) {
   return (
     <Link
       to={`/chat/${convo.id}`}
-      className="group block overflow-hidden rounded-2xl border border-border bg-bg-subtle/60 p-5 transition hover:border-accent/30 hover:bg-bg-subtle hover:shadow-glow"
+      className="group block overflow-hidden rounded-2xl border border-border bg-bg-subtle/40 p-6 transition hover:border-accent/30 hover:bg-bg-subtle hover:shadow-glow"
     >
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5 text-[11px] text-fg-subtle">
+          <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-accent">
             <MessageSquare className="h-3 w-3" />
             <span>Continue</span>
-            <span className="opacity-40">·</span>
-            <span>{timeAgo(convo.updatedAt)}</span>
-            <span className="opacity-40">·</span>
-            <span>{convo.messageCount} {convo.messageCount === 1 ? 'message' : 'messages'}</span>
+            <span className="text-fg-subtle/60 normal-case tracking-normal font-normal">·</span>
+            <span className="text-fg-subtle normal-case tracking-normal font-normal">{timeAgo(convo.updatedAt)}</span>
+            <span className="text-fg-subtle/60 normal-case tracking-normal font-normal">·</span>
+            <span className="text-fg-subtle normal-case tracking-normal font-normal">{convo.messageCount} {convo.messageCount === 1 ? 'message' : 'messages'}</span>
           </div>
-          <h3 className="mt-1.5 truncate text-base font-semibold text-fg">
+          <h3 className="mt-2 truncate font-serif text-xl font-medium tracking-tight text-fg">
             {convo.title || 'Untitled conversation'}
           </h3>
         </div>
@@ -305,19 +305,19 @@ function FirstTimeCard({ stage }: { stage?: string }) {
   return (
     <Link
       to="/chat"
-      className="group block overflow-hidden rounded-2xl border border-accent/25 bg-accent/[0.06] p-6 transition hover:bg-accent/[0.1] hover:shadow-glow"
+      className="group block overflow-hidden rounded-2xl border border-accent/30 bg-accent/[0.06] p-7 transition hover:bg-accent/[0.1] hover:shadow-glow"
     >
       <div className="flex items-center justify-between gap-4">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-widest text-accent">Your AI cofounder is ready</p>
-          <h3 className="mt-1.5 text-lg font-semibold text-fg">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-accent">Your AI cofounder is ready</p>
+          <h3 className="mt-2.5 font-serif text-2xl font-medium leading-snug tracking-tight text-fg">
             {stage === 'idea' && "Start with your idea — what are you building?"}
             {stage === 'validating' && "Let's figure out how to validate this fast."}
             {stage === 'building' && "What's blocking you right now?"}
             {stage === 'launched' && "Great — how do we grow from here?"}
             {(!stage || stage === 'idea') && "Ask me anything — I'll remember everything."}
           </h3>
-          <p className="mt-1 text-sm text-fg-muted">
+          <p className="mt-2 text-sm font-medium text-accent">
             Start your first conversation →
           </p>
         </div>
@@ -337,14 +337,14 @@ function QuickPrompts({ prompts }: { prompts: [string, string, string] }) {
   }
 
   return (
-    <div className="flex flex-col gap-2">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-fg-subtle">Quick start</p>
+    <div className="flex flex-col gap-3">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-fg-subtle">Quick start</p>
       <div className="flex flex-wrap gap-2">
         {prompts.map((p) => (
           <button
             key={p}
             onClick={() => go(p)}
-            className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg-subtle/60 px-4 py-2 text-sm text-fg-muted transition hover:border-fg/15 hover:bg-bg-muted hover:text-fg"
+            className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg-subtle/40 px-4 py-2 text-sm text-fg-muted transition hover:border-accent/30 hover:bg-accent/[0.06] hover:text-accent"
           >
             {p}
           </button>
@@ -356,20 +356,20 @@ function QuickPrompts({ prompts }: { prompts: [string, string, string] }) {
 
 function SectionLabel({ children }: { children: ReactNode }) {
   return (
-    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-fg-subtle">{children}</p>
+    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-fg-subtle">{children}</p>
   )
 }
 
 function StatPill({ label, value, highlight }: { label: string; value: number; highlight?: boolean }) {
   return (
     <div className={cn(
-      'inline-flex items-baseline gap-1.5 rounded-full px-4 py-1.5 text-sm',
+      'inline-flex items-baseline gap-2 rounded-2xl border px-5 py-2.5',
       highlight
-        ? 'border border-accent/25 bg-accent/[0.08] text-accent'
-        : 'border border-border bg-bg-subtle/60 text-fg-muted'
+        ? 'border-accent/30 bg-accent/[0.06] text-accent'
+        : 'border-border bg-bg-subtle/40 text-fg-muted'
     )}>
-      <span className="text-base font-semibold tabular-nums">{value}</span>
-      <span className="text-xs opacity-70">{label}</span>
+      <span className="font-serif text-2xl font-semibold tracking-tight tabular-nums">{value}</span>
+      <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-fg-subtle">{label}</span>
     </div>
   )
 }

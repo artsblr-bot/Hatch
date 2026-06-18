@@ -26,12 +26,12 @@ interface Particle {
 // Warm-biased, celebratory palette anchored on the yolk amber, with a couple
 // of cool notes so the burst still pops.
 const COLORS = [
-  'hsl(35 92% 60%)',
-  'hsl(45 90% 62%)',
-  'hsl(15 82% 60%)',
-  'hsl(340 70% 64%)',
-  'hsl(174 60% 52%)',
-  'hsl(146 60% 52%)',
+  'hsl(15 52% 60%)',   // coral
+  'hsl(38 75% 62%)',   // amber companion
+  'hsl(168 42% 52%)',  // teal accent
+  'hsl(15 45% 50%)',   // deep coral
+  'hsl(45 70% 66%)',   // gold
+  'hsl(140 35% 52%)',  // sage
 ]
 
 /**

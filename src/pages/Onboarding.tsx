@@ -10,12 +10,16 @@ import { AmbientAurora } from '@/components/AmbientAurora'
 import { ParticleField } from '@/components/ParticleField'
 import { WordmarkReveal } from '@/components/WordmarkReveal'
 import { ConfettiBurst } from '@/components/ConfettiBurst'
+import { useCelebrate } from '@/components/Celebration'
 import { cn } from '@/lib/utils'
 
+// Idea-first ordering: we let the founder talk about what they're building
+// (the thing they actually want to do) *before* asking for a password. Value
+// before commitment — reciprocity beats friction-first every time.
 const STEPS = [
   { id: 'welcome', label: 'Welcome' },
-  { id: 'vault',   label: 'Password' },
   { id: 'business', label: 'Your idea' },
+  { id: 'vault',   label: 'Password' },
   { id: 'engine',  label: 'AI engine' },
   { id: 'ready',   label: 'Ready' },
 ]
@@ -43,7 +47,9 @@ export function Onboarding() {
   const next = () => { setDirection(1);  setStep((s) => Math.min(STEPS.length - 1, s + 1)) }
   const prev = () => { setDirection(-1); setStep((s) => Math.max(0, s - 1)) }
 
-  const progress = step / (STEPS.length - 1)
+  // Endowed-progress effect: the bar is never empty — you're "already on your
+  // way" from step one, which measurably lifts completion.
+  const progress = (step + 1) / STEPS.length
 
   return (
     <div className="relative grid min-h-screen place-items-center overflow-hidden bg-bg px-4 py-8 text-fg">
@@ -51,22 +57,22 @@ export function Onboarding() {
       <div className="pointer-events-none absolute inset-0 opacity-[0.04] bg-dot-grid" />
 
       <div className="relative w-full max-w-2xl">
-        {/* Progress bar + step counter */}
-        <div className="mb-6 flex items-center gap-3">
-          <div className="flex-1 overflow-hidden rounded-full bg-border/50 h-1">
+        {/* Progress bar + step counter — hairline rule */}
+        <div className="mb-7 flex items-center gap-4">
+          <div className="flex-1 overflow-hidden rounded-full bg-border-subtle h-px">
             <motion.div
               className="h-full rounded-full bg-accent"
               animate={{ width: `${progress * 100}%` }}
               transition={{ type: 'spring', stiffness: 120, damping: 20 }}
             />
           </div>
-          <span className="flex-shrink-0 text-[11px] tabular-nums text-fg-subtle">
+          <span className="flex-shrink-0 text-[11px] uppercase tracking-[0.18em] tabular-nums text-fg-subtle">
             {step + 1} / {STEPS.length}
           </span>
         </div>
 
-        {/* Step card */}
-        <div className="relative overflow-hidden rounded-3xl border border-border bg-bg-subtle/40 shadow-soft">
+        {/* Step card — calm cream editorial surface */}
+        <div className="relative overflow-hidden rounded-3xl border border-border bg-bg shadow-soft">
           <AnimatePresence mode="wait" custom={direction}>
             <motion.div
               key={step}
@@ -75,13 +81,13 @@ export function Onboarding() {
               initial="enter"
               animate="center"
               exit="exit"
-              className="p-8"
+              className="p-8 sm:p-10"
             >
               {step === 0 && <WelcomeStep onNext={next} />}
-              {step === 1 && (
+              {step === 1 && <BusinessStep onNext={next} onBack={prev} />}
+              {step === 2 && (
                 <VaultStep onNext={(key) => { setDek(key); next() }} onBack={prev} />
               )}
-              {step === 2 && <BusinessStep onNext={next} onBack={prev} />}
               {step === 3 && <EngineStep dek={dek!} onNext={next} onBack={prev} />}
               {step === 4 && (
                 <ReadyStep
@@ -188,10 +194,11 @@ function WelcomeStep({ onNext }: { onNext: () => void }) {
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.12, duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
       >
-        <h1 className="mt-6 font-serif text-3xl font-medium tracking-tight">
-          Hi. I'm <WordmarkReveal text="hatch" size={32} highlight="text-accent" />.
+        <p className="mt-6 text-[11px] uppercase tracking-[0.18em] text-accent">Welcome</p>
+        <h1 className="mt-2 font-serif text-4xl font-medium tracking-tight">
+          Hi. I'm <WordmarkReveal text="hatch" size={36} highlight="text-accent" />.
         </h1>
-        <p className="mt-2 text-fg-muted text-pretty">
+        <p className="mt-3 text-fg-muted text-pretty">
           Your AI cofounder — strategy, product, marketing, and finance. I remember everything, draft real documents, and keep you moving week by week.
         </p>
       </motion.div>
@@ -294,12 +301,13 @@ function VaultStep({ onNext, onBack }: { onNext: (dek: CryptoKey) => void; onBac
 
   return (
     <div>
-      <div className="flex items-center gap-3">
+      <p className="text-[11px] uppercase tracking-[0.18em] text-accent">Password</p>
+      <div className="mt-3 flex items-center gap-3">
         <motion.div
           initial={{ scale: 0.6, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ type: 'spring', stiffness: 300, damping: 18 }}
-          className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl"
+          className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl"
           style={{ background: 'hsl(var(--accent) / 0.12)', border: '1px solid hsl(var(--accent) / 0.28)' }}
         >
           <svg viewBox="0 0 24 24" className="h-5 w-5 text-accent" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -308,7 +316,7 @@ function VaultStep({ onNext, onBack }: { onNext: (dek: CryptoKey) => void; onBac
           </svg>
         </motion.div>
         <div>
-          <h2 className="font-serif text-2xl font-medium tracking-tight">Create a password</h2>
+          <h2 className="font-serif text-3xl font-medium tracking-tight">Create a password</h2>
           <p className="text-sm text-fg-muted">Keeps your data private on this device.</p>
         </div>
       </div>
@@ -446,14 +454,14 @@ function BusinessStep({ onNext, onBack }: { onNext: () => void; onBack: () => vo
   return (
     <div>
       <div className="flex items-center justify-between">
-        <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-accent">Your idea</span>
-        <span className="text-[11px] text-fg-subtle">{q + 1} of 3</span>
+        <span className="text-[11px] uppercase tracking-[0.18em] text-accent">Your idea</span>
+        <span className="text-[11px] uppercase tracking-[0.18em] tabular-nums text-fg-subtle">{q + 1} of 3</span>
       </div>
 
       <AnimatePresence mode="wait" custom={qDir}>
         {q === 0 && (
           <motion.div key="q0" custom={qDir} variants={slideVariants} initial="enter" animate="center" exit="exit">
-            <h2 className="mt-4 font-serif text-2xl font-medium tracking-tight">What are you building?</h2>
+            <h2 className="mt-4 font-serif text-3xl font-medium tracking-tight">What are you building?</h2>
             <p className="mt-1 text-sm text-fg-muted">Raw is fine — no need for a perfect pitch.</p>
             <div className="relative mt-4">
               <textarea
@@ -469,12 +477,32 @@ function BusinessStep({ onNext, onBack }: { onNext: () => void; onBack: () => vo
                 <div className="absolute bottom-2 right-3 text-[10px] text-fg-subtle">{idea.length}</div>
               )}
             </div>
+            {/* Instant reflection — the cofounder reacting the moment there's
+                something real to react to. A small, immediate reward that
+                proves it's listening (and primes the "it remembers" promise). */}
+            <AnimatePresence>
+              {idea.trim().length >= 15 && (
+                <motion.div
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  className="mt-2.5 flex items-center gap-1.5 text-[11px] font-medium text-accent"
+                >
+                  <span className="grid h-3.5 w-3.5 place-items-center rounded-full bg-accent/15">
+                    <svg viewBox="0 0 24 24" className="h-2.5 w-2.5" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  </span>
+                  Got it — I'll remember this.
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
         )}
 
         {q === 1 && (
           <motion.div key="q1" custom={qDir} variants={slideVariants} initial="enter" animate="center" exit="exit">
-            <h2 className="mt-4 font-serif text-2xl font-medium tracking-tight">Who is it for?</h2>
+            <h2 className="mt-4 font-serif text-3xl font-medium tracking-tight">Who is it for?</h2>
             <p className="mt-1 text-sm text-fg-muted">A job title, a type of person, or a specific situation.</p>
             <input
               value={icp}
@@ -489,9 +517,9 @@ function BusinessStep({ onNext, onBack }: { onNext: () => void; onBack: () => vo
 
         {q === 2 && (
           <motion.div key="q2" custom={qDir} variants={slideVariants} initial="enter" animate="center" exit="exit">
-            <h2 className="mt-4 font-serif text-2xl font-medium tracking-tight">What stage are you at?</h2>
+            <h2 className="mt-4 font-serif text-3xl font-medium tracking-tight">What stage are you at?</h2>
             <p className="mt-1 text-sm text-fg-muted">Pick one to continue.</p>
-            <div className="mt-4 grid grid-cols-2 gap-2">
+            <div className="mt-4 grid grid-cols-2 gap-2.5">
               {STAGE_OPTIONS.map((opt, i) => (
                 <motion.button
                   key={opt.value}
@@ -502,7 +530,7 @@ function BusinessStep({ onNext, onBack }: { onNext: () => void; onBack: () => vo
                   transition={{ delay: i * 0.07, type: 'spring', stiffness: 300, damping: 22 }}
                   whileHover={{ scale: 1.04, y: -2 }}
                   whileTap={{ scale: 0.96 }}
-                  className="flex flex-col items-start gap-1 rounded-xl border border-border bg-bg-subtle/30 p-4 text-left transition hover:border-accent/30 hover:bg-accent/[0.06] disabled:opacity-60"
+                  className="flex flex-col items-start gap-1 rounded-2xl border border-border bg-bg-subtle p-4 text-left transition hover:border-accent/40 hover:bg-accent/[0.08] disabled:opacity-60"
                 >
                   <span className="text-2xl">{opt.emoji}</span>
                   <span className="text-sm font-semibold">{opt.label}</span>
@@ -591,7 +619,8 @@ function EngineStep({ dek, onNext, onBack }: { dek: CryptoKey; onNext: () => voi
 
   return (
     <div>
-      <h2 className="font-serif text-2xl font-medium tracking-tight">Choose your AI</h2>
+      <p className="text-[11px] uppercase tracking-[0.18em] text-accent">AI engine</p>
+      <h2 className="mt-2 font-serif text-3xl font-medium tracking-tight">Choose your AI</h2>
       <p className="mt-1 text-sm text-fg-muted">You can switch any time in Settings.</p>
 
       <div className="mt-5 space-y-2">
@@ -672,8 +701,8 @@ function ProviderRow({ name, desc, badge, selected, onClick }: { name: string; d
       onClick={onClick}
       whileTap={{ scale: 0.98 }}
       className={cn(
-        'cursor-pointer rounded-xl border p-3.5 transition',
-        selected ? 'border-accent/40 bg-accent/[0.08]' : 'border-border bg-bg-subtle/30 hover:bg-bg-muted'
+        'cursor-pointer rounded-2xl border p-3.5 transition',
+        selected ? 'border-accent/40 bg-accent/[0.08]' : 'border-border bg-bg-subtle hover:bg-bg-muted'
       )}
     >
       <div className="flex items-center gap-3">
@@ -685,7 +714,7 @@ function ProviderRow({ name, desc, badge, selected, onClick }: { name: string; d
                 animate={{ scale: 1 }}
                 exit={{ scale: 0 }}
                 transition={{ type: 'spring', stiffness: 500, damping: 22 }}
-                className="h-1.5 w-1.5 rounded-full bg-white"
+                className="h-1.5 w-1.5 rounded-full bg-accent-fg"
               />
             )}
           </AnimatePresence>
@@ -707,12 +736,28 @@ function ProviderRow({ name, desc, badge, selected, onClick }: { name: string; d
 // ---------------------------------------------------------------------------
 
 function ReadyStep({ onDone }: { onDone: () => void }) {
+  const company = useLiveQuery(() => db.company.get('singleton'), [])
+  const { burst: fireBurst } = useCelebrate()
   const [burst, setBurst] = useState(false)
 
   useEffect(() => {
-    const t = setTimeout(() => setBurst(true), 380)
+    // Peak-end: land the celebration the instant this step appears.
+    const t = setTimeout(() => { setBurst(true); fireBurst('big') }, 380)
     return () => clearTimeout(t)
-  }, [])
+  }, [fireBurst])
+
+  const idea = company?.idea?.trim()
+  const icp = company?.icp?.trim()
+  const stageOpt = STAGE_OPTIONS.find((s) => s.value === company?.stage)
+
+  // Mirror the founder's own words back — making their investment visible is
+  // what turns "I filled a form" into "it knows my business" (commitment +
+  // the IKEA effect), and it proves the core promise: it remembers.
+  const recap = [
+    idea && { label: 'Building', value: idea },
+    icp && { label: 'For', value: icp },
+    stageOpt && { label: 'Stage', value: `${stageOpt.emoji} ${stageOpt.label}` },
+  ].filter(Boolean) as { label: string; value: string }[]
 
   return (
     <div className="relative text-center">
@@ -732,48 +777,29 @@ function ReadyStep({ onDone }: { onDone: () => void }) {
       </motion.div>
 
       {/* Headline stagger */}
+      <motion.p
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.14, duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+        className="mt-6 text-[11px] uppercase tracking-[0.18em] text-accent"
+      >
+        Day 1
+      </motion.p>
       <motion.h1
         initial={{ opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.18, duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-        className="mt-6 font-serif text-3xl font-medium tracking-tight"
+        className="mt-2 font-serif text-4xl font-medium tracking-tight"
       >
-        You're ready.
+        {idea ? 'Your cofounder is awake.' : "You're ready."}
       </motion.h1>
 
       <motion.p
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.28, duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-        className="mt-2 text-fg-muted"
+        className="mx-auto mt-2 max-w-md text-fg-muted"
       >
-        Your AI cofounder is waiting. Let's build something.
-      </motion.p>
-
-      <motion.div
-        initial={{ opacity: 0, scale: 0.85 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ delay: 0.4, type: 'spring', stiffness: 260, damping: 18 }}
-        className="mt-8 flex justify-center"
-      >
-        <motion.button
-          onClick={onDone}
-          whileTap={{ scale: 0.94 }}
-          whileHover={{ scale: 1.04 }}
-          // Persistent pulse draws the eye to the CTA
-          animate={{
-            boxShadow: [
-              '0 0 0 0 hsl(var(--accent)/0)',
-              '0 0 0 10px hsl(var(--accent)/0.18)',
-              '0 0 0 0 hsl(var(--accent)/0)',
-            ],
-          }}
-          transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
-          className="inline-flex items-center gap-2 rounded-2xl bg-accent px-7 py-3.5 text-sm font-semibold text-accent-fg focus-ring"
-        >
-          Open the chat 🚀
-        </motion.button>
-      </motion.div>
-    </div>
-  )
-}
+        {idea
+          ? 'It already knows what you’re building. Everything you tell it from here, it remembers — for good.'
+          : 

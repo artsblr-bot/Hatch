@@ -564,7 +564,7 @@ export function ChatPage() {
   const activeProviderId = (settings.defaultProvider as ProviderId) || 'browser-ai'
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col bg-bg">
       <ChatHeader
         agent={AGENTS[activeAgent]}
         providerId={activeProviderId}

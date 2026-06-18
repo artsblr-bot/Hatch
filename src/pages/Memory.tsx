@@ -184,16 +184,16 @@ export function Memory() {
                 const fields = Object.keys(ext).filter((k) => k !== 'reasoning' && ext[k])
                 if (fields.length === 0) return null
                 return (
-                  <div key={ev.id} className="flex items-start gap-3 rounded-2xl border border-accent/40 bg-accent/5 p-4">
+                  <div key={ev.id} className="flex items-start gap-3 rounded-2xl border border-border-subtle bg-bg-subtle/40 p-5 transition hover:border-border">
                     <Sparkles className="mt-0.5 h-4 w-4 flex-shrink-0 text-accent" />
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium">Hatch learned something new</div>
-                      <div className="mt-1 text-xs text-fg-muted">
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-accent">What I learned</div>
+                      <div className="mt-1.5 text-sm text-fg">
                         {ext.reasoning || `Updates to: ${fields.join(', ')}`}
                       </div>
-                      <div className="mt-2 flex flex-wrap gap-1.5">
+                      <div className="mt-2.5 flex flex-wrap gap-1.5">
                         {fields.slice(0, 6).map((f) => (
-                          <span key={f} className="rounded-full bg-bg px-2 py-0.5 text-[10px] text-fg-muted">
+                          <span key={f} className="rounded-full bg-bg-muted px-2 py-0.5 text-[10px] text-fg-muted">
                             {f}
                           </span>
                         ))}
@@ -202,13 +202,13 @@ export function Memory() {
                     <div className="flex items-center gap-1">
                       <button
                         onClick={() => acceptExtraction(ev.id)}
-                        className="rounded-lg bg-accent px-2.5 py-1 text-xs font-medium text-accent-fg hover:shadow-glow"
+                        className="rounded-xl bg-accent px-3 py-1.5 text-xs font-medium text-accent-fg transition hover:shadow-glow"
                       >
                         Apply
                       </button>
                       <button
                         onClick={() => dismissExtraction(ev.id)}
-                        className="rounded-lg p-1.5 text-fg-subtle hover:bg-bg-muted hover:text-fg"
+                        className="rounded-xl p-1.5 text-fg-subtle transition hover:bg-bg-muted hover:text-fg"
                       >
                         <X className="h-3.5 w-3.5" />
                       </button>
@@ -221,13 +221,13 @@ export function Memory() {
         </AnimatePresence>
 
         {/* Form */}
-        <div className="mt-8 space-y-6">
+        <div className="mt-8 space-y-6 rounded-2xl border border-border-subtle bg-bg-subtle/40 p-6 md:p-8">
           <Field label="Business name">
             <input
               value={draft.name}
               onChange={(e) => set('name', e.target.value)}
               placeholder="e.g. Hatch"
-              className="w-full rounded-xl border border-border bg-bg-subtle/40 px-3 py-2 text-sm text-fg placeholder:text-fg-subtle focus:border-fg/20 focus:outline-none focus:ring-2 focus:ring-accent/20"
+              className="w-full rounded-xl border border-border bg-bg px-3 py-2 text-sm text-fg placeholder:text-fg-subtle focus:border-fg/20 focus:outline-none focus:ring-2 focus:ring-accent/20"
             />
           </Field>
 
@@ -236,7 +236,7 @@ export function Memory() {
               value={draft.oneLiner}
               onChange={(e) => set('oneLiner', e.target.value)}
               placeholder="e.g. An AI cofounder for non-technical founders."
-              className="w-full rounded-xl border border-border bg-bg-subtle/40 px-3 py-2 text-sm text-fg placeholder:text-fg-subtle focus:border-fg/20 focus:outline-none focus:ring-2 focus:ring-accent/20"
+              className="w-full rounded-xl border border-border bg-bg px-3 py-2 text-sm text-fg placeholder:text-fg-subtle focus:border-fg/20 focus:outline-none focus:ring-2 focus:ring-accent/20"
             />
           </Field>
 
@@ -246,7 +246,7 @@ export function Memory() {
               onChange={(e) => set('idea', e.target.value)}
               placeholder="What is it, who is it for, what problem does it solve?"
               rows={4}
-              className="w-full resize-none rounded-xl border border-border bg-bg-subtle/40 px-3 py-2 text-sm text-fg placeholder:text-fg-subtle focus:border-fg/20 focus:outline-none focus:ring-2 focus:ring-accent/20"
+              className="w-full resize-none rounded-xl border border-border bg-bg px-3 py-2 text-sm text-fg placeholder:text-fg-subtle focus:border-fg/20 focus:outline-none focus:ring-2 focus:ring-accent/20"
             />
           </Field>
 
@@ -256,7 +256,7 @@ export function Memory() {
               onChange={(e) => set('icp', e.target.value)}
               placeholder="e.g. First-time founders with no technical background, in their 30s, working on a B2C product."
               rows={3}
-              className="w-full resize-none rounded-xl border border-border bg-bg-subtle/40 px-3 py-2 text-sm text-fg placeholder:text-fg-subtle focus:border-fg/20 focus:outline-none focus:ring-2 focus:ring-accent/20"
+              className="w-full resize-none rounded-xl border border-border bg-bg px-3 py-2 text-sm text-fg placeholder:text-fg-subtle focus:border-fg/20 focus:outline-none focus:ring-2 focus:ring-accent/20"
             />
           </Field>
 
@@ -269,8 +269,8 @@ export function Memory() {
                   className={cn(
                     'flex flex-col items-start rounded-xl border p-3 text-left transition focus-ring',
                     draft.stage === s.value
-                      ? 'border-accent/40 bg-accent/10'
-                      : 'border-border bg-bg-subtle/30 hover:bg-bg-muted'
+                      ? 'border-accent/50 bg-accent/10 text-accent'
+                      : 'border-border bg-bg hover:bg-bg-muted'
                   )}
                 >
                   <div className="text-sm font-medium">{s.label}</div>
@@ -287,7 +287,7 @@ export function Memory() {
                 onChange={(e) => set('goal90d', e.target.value)}
                 placeholder="e.g. 100 signups, 10 paying customers."
                 rows={3}
-                className="w-full resize-none rounded-xl border border-border bg-bg-subtle/40 px-3 py-2 text-sm text-fg placeholder:text-fg-subtle focus:border-fg/20 focus:outline-none focus:ring-2 focus:ring-accent/20"
+                className="w-full resize-none rounded-xl border border-border bg-bg px-3 py-2 text-sm text-fg placeholder:text-fg-subtle focus:border-fg/20 focus:outline-none focus:ring-2 focus:ring-accent/20"
               />
             </Field>
             <Field label="1-year goal" hint="Where do you want to be in a year?">
@@ -296,7 +296,7 @@ export function Memory() {
                 onChange={(e) => set('goal1y', e.target.value)}
                 placeholder="e.g. $10k MRR, full-time on the business."
                 rows={3}
-                className="w-full resize-none rounded-xl border border-border bg-bg-subtle/40 px-3 py-2 text-sm text-fg placeholder:text-fg-subtle focus:border-fg/20 focus:outline-none focus:ring-2 focus:ring-accent/20"
+                className="w-full resize-none rounded-xl border border-border bg-bg px-3 py-2 text-sm text-fg placeholder:text-fg-subtle focus:border-fg/20 focus:outline-none focus:ring-2 focus:ring-accent/20"
               />
             </Field>
           </div>
@@ -304,7 +304,7 @@ export function Memory() {
           <Field label="Current blockers" hint="What's getting in the way right now?">
             <div className="space-y-2">
               {draft.blockers.map((b, i) => (
-                <div key={i} className="flex items-center gap-2 rounded-lg border border-border bg-bg-subtle/40 px-3 py-2 text-sm">
+                <div key={i} className="flex items-center gap-2 rounded-xl border border-border bg-bg px-3 py-2 text-sm">
                   <AlertCircle className="h-3.5 w-3.5 text-warning" />
                   <span className="flex-1">{b}</span>
                   <button onClick={() => removeBlocker(i)} className="text-fg-subtle hover:text-danger">
@@ -318,9 +318,9 @@ export function Memory() {
                   onChange={(e) => setNewBlocker(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && addBlocker()}
                   placeholder="Add a blocker…"
-                  className="w-full flex-1 rounded-xl border border-border bg-bg-subtle/40 px-3 py-2 text-sm text-fg placeholder:text-fg-subtle focus:border-fg/20 focus:outline-none focus:ring-2 focus:ring-accent/20"
+                  className="w-full flex-1 rounded-xl border border-border bg-bg px-3 py-2 text-sm text-fg placeholder:text-fg-subtle focus:border-fg/20 focus:outline-none focus:ring-2 focus:ring-accent/20"
                 />
-                <button onClick={addBlocker} className="rounded-lg bg-bg-muted p-2 text-fg-muted hover:bg-bg-muted/60 hover:text-fg">
+                <button onClick={addBlocker} className="rounded-xl bg-bg-muted p-2 text-fg-muted transition hover:bg-bg-muted/60 hover:text-fg">
                   <Plus className="h-3.5 w-3.5" />
                 </button>
               </div>
@@ -331,7 +331,7 @@ export function Memory() {
             <Field label="Decisions made" hint="Important decisions you've made. Hatch references these.">
               <div className="space-y-1.5">
                 {[...draft.decisions].reverse().slice(0, 10).map((d, i) => (
-                  <div key={i} className="rounded-lg border border-border-subtle bg-bg-subtle/30 p-2.5 text-sm">
+                  <div key={i} className="rounded-xl border border-border-subtle bg-bg p-2.5 text-sm">
                     <div className="flex items-baseline gap-2">
                       <span className="text-fg-subtle text-[10px] tabular-nums">
                         {new Date(d.ts).toLocaleDateString()}
@@ -400,7 +400,7 @@ function MemoryTabs({
   ]
   return (
     <div>
-      <div className="mb-6 flex items-center gap-1 overflow-x-auto border-b border-border-subtle">
+      <div className="mb-8 flex items-center gap-1 overflow-x-auto rounded-2xl border border-border-subtle bg-bg-subtle/40 p-1">
         {tabs.map((t) => {
           const Icon = t.icon
           const isActive = active === t.id
@@ -409,10 +409,10 @@ function MemoryTabs({
               key={t.id}
               onClick={() => onChange(t.id)}
               className={cn(
-                'inline-flex flex-shrink-0 items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition',
+                'inline-flex flex-shrink-0 items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-medium transition',
                 isActive
-                  ? 'border-accent text-fg'
-                  : 'border-transparent text-fg-muted hover:text-fg'
+                  ? 'bg-accent/10 text-accent'
+                  : 'text-fg-muted hover:bg-bg-muted/60 hover:text-fg'
               )}
             >
               <Icon className="h-3.5 w-3.5" />

@@ -4,62 +4,59 @@
 
 @layer base {
   /* ---------------------------------------------------------------------
-   * "First Light" — a warm, editorial token system for Hatch.
-   * Light mode = shell-paper cream (the marketing/editorial surfaces).
-   * Dark mode  = warm espresso (the Chat "workspace"; see AppShell dual-surface).
-   * Accent is a warm "yolk" amber — buttons fill amber with ink text, which
-   * reads as premium and stays legible on the cream canvas. The neon orange
-   * (21 100% 55%) that read as a generic "dark + bright accent" default is gone.
+   * Editorial token system, modeled on Anthropic's Claude design language
+   * (warm cream canvas + coral + dark-navy product surfaces; literary serif).
+   * Light = cream editorial surfaces. Dark = warm-navy "product/workspace"
+   * surfaces. Coral is the signature accent (buttons: coral fill, white text).
+   * Depth is color-block-first — shadows are rare; the cream↔navy contrast is
+   * the pacing mechanism.
    * ------------------------------------------------------------------- */
   :root {
-    --bg: 38 52% 96%;          /* shell paper #FBF7F0 */
-    --bg-subtle: 38 44% 93%;
-    --bg-muted: 38 36% 88%;
-    --fg: 28 22% 11%;          /* warm ink #211C17 */
-    --fg-muted: 30 13% 32%;
-    --fg-subtle: 30 12% 40%;   /* legible (~4.6:1) yet clearly secondary */
-    --border: 38 30% 84%;
-    --border-subtle: 40 34% 90%;
-    /* Ember amber: deep enough to read as a label/link on cream, rich as a
-       button fill. Ink text on the fill clears AA (~4.8:1) — same premium
-       ink-on-amber pairing dark mode uses. The brighter "yolk" lives in dark. */
-    --accent: 30 82% 48%;
-    --accent-fg: 28 32% 12%;   /* ink on the ember fill */
-    --ring: 30 82% 45%;
-    --brand-orange: 30 82% 48%;
-    --brand-orange-pressed: 27 82% 42%;
-    --brand-black: 28 22% 11%;
-    --success: 146 55% 33%;
-    --warning: 33 90% 38%;
-    --danger: 6 72% 47%;
-    --agent-mentor: 174 52% 36%;
-    --agent-cto: 217 70% 52%;
-    --agent-cmo: 322 58% 54%;
-    --agent-cfo: 146 52% 40%;
+    --bg: 45 29% 97%;          /* canvas #FAF9F5 */
+    --bg-subtle: 40 36% 93%;   /* surface-soft #F5F0E8 */
+    --bg-muted: 40 30% 90%;    /* surface-card #EFE9DE */
+    --fg: 40 5% 8%;            /* ink #141413 */
+    --fg-muted: 45 4% 24%;     /* body #3D3D3A */
+    --fg-subtle: 48 6% 41%;    /* muted #6C6A64 (~4.6:1 on cream) */
+    --border: 34 25% 87%;      /* hairline #E6DFD8 */
+    --border-subtle: 38 22% 91%;
+    --accent: 15 52% 58%;      /* Claude coral #cc785c */
+    --accent-fg: 0 0% 100%;    /* white on coral */
+    --ring: 15 52% 52%;
+    --brand-orange: 15 52% 58%;
+    --brand-orange-pressed: 15 46% 45%;  /* #a9583e */
+    --brand-black: 40 5% 8%;
+    --success: 142 42% 40%;
+    --warning: 40 80% 40%;
+    --danger: 0 55% 52%;
+    --agent-mentor: 174 45% 36%;
+    --agent-cto: 217 60% 52%;
+    --agent-cmo: 322 50% 54%;
+    --agent-cfo: 142 45% 40%;
   }
 
   .dark {
-    --bg: 28 24% 7%;           /* warm espresso #17120E */
-    --bg-subtle: 28 22% 10%;
-    --bg-muted: 28 20% 14%;
-    --fg: 36 33% 92%;          /* warm cream text #F3ECE2 */
-    --fg-muted: 34 16% 66%;
-    --fg-subtle: 34 12% 50%;
-    --border: 32 20% 17%;
-    --border-subtle: 30 22% 12%;
-    --accent: 35 92% 60%;      /* yolk amber, a touch brighter on dark */
-    --accent-fg: 28 32% 10%;   /* ink on amber */
-    --ring: 35 92% 60%;
-    --brand-orange: 35 92% 60%;
-    --brand-orange-pressed: 28 84% 50%;
-    --brand-black: 28 24% 7%;
-    --success: 146 60% 52%;
-    --warning: 38 90% 58%;
-    --danger: 6 78% 64%;
-    --agent-mentor: 174 60% 56%;
-    --agent-cto: 217 80% 68%;
-    --agent-cmo: 322 70% 70%;
-    --agent-cfo: 146 58% 56%;
+    --bg: 40 8% 9%;            /* surface-dark #181715 */
+    --bg-subtle: 42 8% 11%;    /* surface-dark-soft #1F1E1B */
+    --bg-muted: 40 9% 14%;     /* surface-dark-elevated #252320 */
+    --fg: 45 25% 96%;          /* on-dark #FAF9F5 */
+    --fg-muted: 42 7% 64%;     /* on-dark-soft #A09D96 */
+    --fg-subtle: 40 6% 48%;
+    --border: 40 8% 20%;
+    --border-subtle: 40 8% 15%;
+    --accent: 15 58% 63%;      /* coral, a touch brighter on navy */
+    --accent-fg: 0 0% 100%;
+    --ring: 15 58% 63%;
+    --brand-orange: 15 58% 63%;
+    --brand-orange-pressed: 15 50% 50%;
+    --brand-black: 40 8% 9%;
+    --success: 142 50% 52%;
+    --warning: 40 85% 56%;
+    --danger: 0 65% 62%;
+    --agent-mentor: 174 55% 56%;
+    --agent-cto: 217 70% 68%;
+    --agent-cmo: 322 60% 70%;
+    --agent-cfo: 142 50% 56%;
   }
 
   * {
@@ -245,7 +242,7 @@
       90deg,
       hsl(var(--fg)) 0%,
       hsl(var(--fg)) 35%,
-      hsl(35, 92%, 58%) 50%,
+      hsl(15, 58%, 60%) 50%,
       hsl(var(--fg)) 65%,
       hsl(var(--fg)) 100%
     );

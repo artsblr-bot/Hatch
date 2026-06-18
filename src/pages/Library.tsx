@@ -138,15 +138,16 @@ export function Library() {
   }
 
   return (
-    <div className="grid h-full grid-cols-[1fr_2fr] divide-x divide-border-subtle">
+    <div className="grid h-full grid-cols-[1fr_2fr] divide-x divide-border-subtle bg-bg">
       {/* List */}
       <div className="flex min-h-0 flex-col">
-        <div className="flex-shrink-0 border-b border-border-subtle p-4">
-          <div className="flex items-center justify-between">
+        <div className="flex-shrink-0 border-b border-border-subtle px-5 py-5">
+          <div className="flex items-start justify-between gap-3">
             <div>
-              <h1 className="font-serif text-2xl font-medium tracking-tight">Library</h1>
+              <div className="text-[11px] uppercase tracking-[0.18em] text-fg-subtle">Workspace</div>
+              <h1 className="mt-1 font-serif text-3xl font-semibold tracking-tight">Library</h1>
               {artifacts.length > 0 && (
-                <p className="mt-0.5 text-[11px] text-fg-muted tabular-nums">
+                <p className="mt-1 text-[11px] text-fg-muted tabular-nums">
                   {artifacts.length} artifact{artifacts.length !== 1 ? 's' : ''} built
                 </p>
               )}
@@ -156,30 +157,30 @@ export function Library() {
                 onClick={handleSelfTest}
                 disabled={diagRunning}
                 title="Run a self-test of the artifact search (the same engine the agents use)"
-                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-bg-subtle px-2.5 py-1.5 text-xs font-medium transition hover:bg-bg-muted focus-ring disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg-subtle/60 px-3 py-1.5 text-xs font-medium text-fg-muted transition hover:bg-bg-muted hover:text-fg focus-ring disabled:opacity-50"
               >
                 <FlaskConical className="h-3 w-3" />
                 <span>{diagRunning ? 'Running…' : 'Self-test'}</span>
               </button>
               <button
                 onClick={handleNewBlank}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-bg-subtle px-2.5 py-1.5 text-xs font-medium transition hover:bg-bg-muted focus-ring"
+                className="inline-flex items-center gap-1.5 rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-accent-fg transition hover:opacity-90 focus-ring"
               >
                 <Plus className="h-3 w-3" />
                 <span>New</span>
               </button>
             </div>
           </div>
-          <div className="relative mt-3">
-            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-fg-subtle" />
+          <div className="relative mt-4">
+            <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-fg-subtle" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search artifacts…"
-              className="w-full rounded-lg border border-border bg-bg-subtle/40 py-1.5 pl-8 pr-3 text-sm placeholder:text-fg-subtle focus:border-fg/20 focus:outline-none focus:ring-2 focus:ring-accent/20"
+              className="w-full rounded-full border border-border bg-bg-subtle/40 py-2 pl-9 pr-3 text-sm placeholder:text-fg-subtle focus:border-accent/40 focus:outline-none focus:ring-2 focus:ring-accent/20"
             />
           </div>
-          <div className="mt-3 flex flex-wrap gap-1">
+          <div className="mt-4 flex flex-wrap gap-1.5">
             <FilterChip active={filterType === 'all'} onClick={() => setFilterType('all')}>
               All
             </FilterChip>
@@ -199,7 +200,7 @@ export function Library() {
           </div>
         </div>
 
-        <div className="relative flex-1 overflow-y-auto p-2">
+        <div className="relative flex-1 overflow-y-auto px-3 py-3">
           {filtered.length === 0 ? (
             <div className="relative grid h-full place-items-center overflow-hidden p-8 text-center">
               {artifacts.length === 0 && (
@@ -226,7 +227,7 @@ export function Library() {
               )}
               <div className="relative">
                 <FileText className="mx-auto h-8 w-8 text-fg-subtle" />
-                <h3 className="mt-3 text-sm font-medium">
+                <h3 className="mt-3 font-serif text-lg font-medium tracking-tight">
                   {artifacts.length === 0 ? 'No artifacts yet' : 'No matches'}
                 </h3>
                 <p className="mt-1 max-w-xs text-xs text-fg-muted">
@@ -237,7 +238,7 @@ export function Library() {
               </div>
             </div>
           ) : (
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-2">
               {filtered.map((a, i) => {
                 const t = ARTIFACT_TEMPLATES[a.type] ?? ARTIFACT_TEMPLATES.custom
                 return (
@@ -249,15 +250,15 @@ export function Library() {
                     whileHover={{ y: -1 }}
                     onClick={() => setOpenId(a.id)}
                     className={cn(
-                      'group flex flex-col gap-1 rounded-xl border p-3 text-left transition focus-ring',
+                      'group flex flex-col gap-1.5 rounded-2xl border p-5 text-left transition focus-ring',
                       openId === a.id
-                        ? 'border-accent/40 bg-accent/5'
-                        : 'border-border-subtle bg-bg-subtle/30 hover:border-border hover:bg-bg-subtle/60'
+                        ? 'border-accent/30 bg-accent/[0.06]'
+                        : 'border-border bg-bg-subtle/40 hover:border-border hover:bg-bg-subtle hover:shadow-soft'
                     )}
                   >
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2.5">
                       <span className="text-base">{t.emoji}</span>
-                      <div className="flex-1 min-w-0 truncate text-sm font-medium">{a.title}</div>
+                      <div className="flex-1 min-w-0 truncate font-serif text-[17px] font-medium tracking-tight">{a.title}</div>
                       {a.pinned && <Pin className="h-3 w-3 fill-current text-accent" />}
                     </div>
                     {/* Prefer the AI summary (what the model sees) over the raw body
@@ -272,21 +273,21 @@ export function Library() {
                         {a.content.slice(0, 200)}
                       </div>
                     )}
-                    <div className="mt-1 flex items-center gap-2 text-[10px] text-fg-subtle">
+                    <div className="mt-1.5 flex items-center gap-2 text-[10px] uppercase tracking-[0.12em] text-fg-subtle">
                       <span>{t.name}</span>
                       <span>·</span>
-                      <span>{relativeTime(a.updatedAt)}</span>
+                      <span className="normal-case tracking-normal">{relativeTime(a.updatedAt)}</span>
                       {a.summary ? (
                         <>
                           <span>·</span>
-                          <span className="inline-flex items-center gap-1 text-violet-600 dark:text-violet-400" title="AI-generated summary cached for context efficiency">
+                          <span className="inline-flex items-center gap-1 normal-case tracking-normal text-accent" title="AI-generated summary cached for context efficiency">
                             <Sparkles className="h-2.5 w-2.5" /> summarised
                           </span>
                         </>
                       ) : (
                         <>
                           <span>·</span>
-                          <span className="inline-flex items-center gap-1 text-fg-subtle/70" title="Summary pending — will be generated by the background scheduler">
+                          <span className="inline-flex items-center gap-1 normal-case tracking-normal text-fg-subtle/70" title="Summary pending — will be generated by the background scheduler">
                             <Sparkles className="h-2.5 w-2.5 animate-pulse" /> summarising
                           </span>
                         </>
@@ -340,9 +341,10 @@ export function Library() {
               ))}
             </div>
             <div className="relative text-center">
-              <h3 className="text-base font-semibold text-fg">What do you want to build?</h3>
-              <p className="mt-1 text-sm text-fg-muted">Ask your cofounder to draft one →</p>
-              <div className="mt-5 mx-auto grid max-w-xs grid-cols-2 gap-2">
+              <div className="text-[11px] uppercase tracking-[0.18em] text-fg-subtle">Editor</div>
+              <h3 className="mt-2 font-serif text-2xl font-semibold tracking-tight text-fg">What do you want to build?</h3>
+              <p className="mt-1.5 text-sm text-fg-muted">Ask your cofounder to draft one →</p>
+              <div className="mt-6 mx-auto grid max-w-xs grid-cols-2 gap-2.5">
                 {ARTIFACT_LIST.slice(0, 4).map((t, i) => (
                   <motion.button
                     key={t.type}
@@ -352,7 +354,7 @@ export function Library() {
                     whileHover={{ y: -2, scale: 1.03 }}
                     whileTap={{ scale: 0.97 }}
                     onClick={() => navigate('/chat', { state: { prefill: `Let's draft a ${t.name} for my business` } })}
-                    className="flex flex-col items-center gap-2 rounded-xl border border-border bg-bg-subtle/40 p-4 transition hover:border-accent/30 hover:bg-bg-subtle hover:shadow-glow"
+                    className="flex flex-col items-center gap-2 rounded-2xl border border-border bg-bg-subtle/40 p-5 transition hover:border-accent/30 hover:bg-bg-subtle hover:shadow-glow"
                   >
                     <span className="text-2xl">{t.emoji}</span>
                     <span className="text-[11px] font-medium text-fg">{t.name}</span>
@@ -382,10 +384,10 @@ export function Library() {
               className="relative max-h-[85vh] w-full max-w-2xl overflow-hidden rounded-2xl border border-border bg-bg shadow-soft"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-center gap-2 border-b border-border-subtle bg-bg-subtle/40 px-4 py-3">
-                <Database className="h-4 w-4 text-violet-500" />
+              <div className="flex items-center gap-2.5 border-b border-border-subtle bg-bg-subtle/40 px-5 py-4">
+                <Database className="h-4 w-4 text-accent" />
                 <div className="flex-1">
-                  <div className="text-sm font-semibold">Artifact search self-test</div>
+                  <div className="font-serif text-lg font-medium tracking-tight">Artifact search self-test</div>
                   <div className="text-[11px] text-fg-muted">
                     Runs the same search engine the agents call via <span className="font-mono text-fg">search_artifacts</span>. Results below mirror what your cofounder would see.
                   </div>
@@ -434,13 +436,13 @@ export function Library() {
                                   {ARTIFACT_TEMPLATES[h.type as keyof typeof ARTIFACT_TEMPLATES]?.emoji || '📄'}
                                 </span>
                                 <div className="flex-1 min-w-0 truncate font-medium text-fg">{h.title}</div>
-                                <div className="rounded-full bg-violet-500/15 px-1.5 py-0.5 font-mono text-[10px] text-violet-700 dark:text-violet-300">
+                                <div className="rounded-full bg-accent/15 px-1.5 py-0.5 font-mono text-[10px] text-accent">
                                   score {h.score.toFixed(2)}
                                 </div>
                                 {h.pinned && <Pin className="h-2.5 w-2.5 fill-current text-accent" />}
                                 {h.broadRecall && (
                                   <span
-                                    className="rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-300"
+                                    className="rounded-full bg-bg-muted px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-fg-muted"
                                     title="Matched via broad-recall (stem/prefix fallback)"
                                   >
                                     broad
@@ -468,8 +470,8 @@ export function Library() {
                                       className={cn(
                                         'rounded px-1 py-0.5 font-mono',
                                         m.exact
-                                          ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
-                                          : 'bg-amber-500/10 text-amber-700 dark:text-amber-300'
+                                          ? 'bg-success/10 text-success'
+                                          : 'bg-bg-muted text-fg-muted'
                                       )}
                                       title={m.exact ? 'exact match' : 'stem/prefix fallback'}
                                     >
@@ -504,10 +506,10 @@ function FilterChip({ active, onClick, children }: { active: boolean; onClick: (
     <button
       onClick={onClick}
       className={cn(
-        'inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] transition',
+        'inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-medium transition',
         active
-          ? 'border-accent/40 bg-accent/10 text-accent'
-          : 'border-border bg-bg-subtle/30 text-fg-muted hover:bg-bg-muted'
+          ? 'border-accent/30 bg-accent/[0.06] text-accent'
+          : 'border-transparent text-fg-muted hover:bg-bg-muted hover:text-fg'
       )}
     >
       {children}
@@ -566,26 +568,26 @@ function ArtifactEditor({
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: 8 }}
       transition={{ duration: 0.18 }}
-      className="flex min-h-0 flex-col"
+      className="flex min-h-0 flex-col bg-bg"
     >
-      <div className="flex-shrink-0 border-b border-border-subtle p-4">
+      <div className="flex-shrink-0 border-b border-border-subtle px-8 py-6">
         <div className="flex items-start gap-3">
           <div className="text-2xl">{template.emoji}</div>
           <div className="flex-1 min-w-0">
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full bg-transparent text-xl font-semibold tracking-tight focus:outline-none"
+              className="w-full bg-transparent font-serif text-3xl font-semibold tracking-tight focus:outline-none"
             />
-            <div className="mt-1 flex items-center gap-2 text-[11px] text-fg-subtle">
+            <div className="mt-1.5 flex items-center gap-2 text-[11px] uppercase tracking-[0.12em] text-fg-subtle">
               <span>{template.name}</span>
               <span>·</span>
-              <span>Updated {relativeTime(artifact.updatedAt)}</span>
-              {saving && <span>· saving…</span>}
+              <span className="normal-case tracking-normal">Updated {relativeTime(artifact.updatedAt)}</span>
+              {saving && <span className="normal-case tracking-normal">· saving…</span>}
               {artifact.sourceMessageId && sourceConv && (
                 <Link
                   to={`/chat/${artifact.conversationId}?msg=${artifact.sourceMessageId}`}
-                  className="ml-1 inline-flex items-center gap-1 rounded-full border border-accent/30 bg-accent/5 px-1.5 py-0.5 font-medium text-accent transition hover:border-accent/50 hover:bg-accent/10"
+                  className="ml-1 inline-flex items-center gap-1 rounded-full border border-accent/30 bg-accent/[0.06] px-2 py-0.5 font-medium normal-case tracking-normal text-accent transition hover:bg-accent/10"
                   title="Jump back to the message this was saved from"
                 >
                   <span>📍</span>
@@ -600,8 +602,8 @@ function ArtifactEditor({
             <button
               onClick={() => setMode(mode === 'edit' ? 'preview' : 'edit')}
               className={cn(
-                'rounded-lg px-2.5 py-1.5 text-xs transition focus-ring',
-                mode === 'edit' ? 'bg-accent text-accent-fg' : 'border border-border bg-bg-subtle hover:bg-bg-muted'
+                'rounded-full px-3 py-1.5 text-xs font-medium transition focus-ring',
+                mode === 'edit' ? 'bg-accent text-accent-fg' : 'border border-border bg-bg-subtle/60 text-fg-muted hover:bg-bg-muted hover:text-fg'
               )}
             >
               {mode === 'edit' ? 'Preview' : 'Edit'}
@@ -645,16 +647,16 @@ function ArtifactEditor({
           </div>
         </div>
       </div>
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto px-8 py-8">
         {mode === 'edit' ? (
           <textarea
             value={content}
             onChange={(e) => setContent(e.target.value)}
-            className="prose-chat h-full w-full resize-none border-0 bg-transparent font-mono text-sm focus:outline-none"
+            className="prose-chat mx-auto h-full w-full max-w-2xl resize-none border-0 bg-transparent font-mono text-sm focus:outline-none"
             style={{ minHeight: 400 }}
           />
         ) : (
-          <div className="prose-chat max-w-2xl text-[15px]">
+          <div className="prose-chat mx-auto max-w-2xl text-[15px]">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
           </div>
         )}

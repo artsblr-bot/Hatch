@@ -42,19 +42,22 @@ export function SettingsPage() {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto">
-      <div className="mx-auto max-w-3xl px-6 py-10">
-        <h1 className="font-serif text-3xl font-medium tracking-tight">Settings</h1>
-        <p className="mt-2 text-fg-muted">Configure your AI providers, search, vault, and personalization.</p>
+    <div className="flex-1 overflow-y-auto bg-bg">
+      <div className="mx-auto max-w-3xl px-6 py-14">
+        <div className="text-[11px] uppercase tracking-[0.18em] text-fg-subtle">Workspace</div>
+        <h1 className="mt-2 font-serif text-4xl font-semibold tracking-tight text-fg">Settings</h1>
+        <p className="mt-3 max-w-prose text-fg-muted">Configure your AI providers, search, vault, and personalization.</p>
 
         {/* Vault status */}
         <Section title="Vault" description="Your data is encrypted with your passphrase. We never see it.">
           {vaultUnlocked ? (
-            <div className="flex items-center justify-between rounded-2xl border border-success/30 bg-success/5 p-4">
-              <div className="flex items-center gap-3">
-                <Unlock className="h-5 w-5 text-success" />
+            <div className="flex items-center justify-between rounded-2xl border border-success/30 bg-success/[0.06] p-5">
+              <div className="flex items-center gap-3.5">
+                <div className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-xl bg-success/10 text-success">
+                  <Unlock className="h-5 w-5" />
+                </div>
                 <div>
-                  <div className="text-sm font-medium">Vault is unlocked</div>
+                  <div className="text-sm font-medium text-fg">Vault is unlocked</div>
                   <div className="text-xs text-fg-muted">Your data is readable to this browser session.</div>
                 </div>
               </div>
@@ -65,24 +68,26 @@ export function SettingsPage() {
                   toast.info('Vault locked')
                   navigate('/vault')
                 }}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-bg-subtle px-3 py-1.5 text-xs font-medium transition hover:bg-bg-muted focus-ring"
+                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg-subtle px-3.5 py-2 text-xs font-medium text-fg transition hover:bg-bg-muted focus-ring"
               >
                 <Lock className="h-3.5 w-3.5" />
                 Lock now
               </button>
             </div>
           ) : (
-            <div className="flex items-center justify-between rounded-2xl border border-warning/40 bg-warning/5 p-4">
-              <div className="flex items-center gap-3">
-                <Lock className="h-5 w-5 text-warning" />
+            <div className="flex items-center justify-between rounded-2xl border border-warning/40 bg-warning/[0.06] p-5">
+              <div className="flex items-center gap-3.5">
+                <div className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-xl bg-warning/10 text-warning">
+                  <Lock className="h-5 w-5" />
+                </div>
                 <div>
-                  <div className="text-sm font-medium">Vault is locked</div>
+                  <div className="text-sm font-medium text-fg">Vault is locked</div>
                   <div className="text-xs text-fg-muted">Unlock to chat and use encrypted features.</div>
                 </div>
               </div>
               <button
                 onClick={() => navigate('/vault')}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-warning px-3 py-1.5 text-xs font-medium text-bg transition hover:bg-warning/90 focus-ring"
+                className="inline-flex items-center gap-1.5 rounded-full bg-warning px-3.5 py-2 text-xs font-medium text-bg transition hover:bg-warning/90 focus-ring"
               >
                 <Unlock className="h-3.5 w-3.5" />
                 Unlock
@@ -136,14 +141,14 @@ export function SettingsPage() {
                   key={s.id}
                   onClick={() => updateSettings({ searchProvider: s.id as any })}
                   className={cn(
-                    'rounded-xl border p-3 text-left transition focus-ring',
+                    'rounded-xl border p-3.5 text-left transition focus-ring',
                     settings.searchProvider === s.id
-                      ? 'border-accent/40 bg-accent/10'
-                      : 'border-border bg-bg-subtle/30 hover:bg-bg-muted'
+                      ? 'border-accent/40 bg-accent/[0.08]'
+                      : 'border-border-subtle bg-bg-subtle hover:bg-bg-muted'
                   )}
                 >
-                  <div className="text-sm font-medium">{s.name}</div>
-                  <div className="text-[10px] text-fg-subtle">{s.hint}</div>
+                  <div className={cn('text-sm font-medium', settings.searchProvider === s.id ? 'text-accent' : 'text-fg')}>{s.name}</div>
+                  <div className="mt-0.5 text-[10px] text-fg-subtle">{s.hint}</div>
                 </button>
               ))}
             </div>
@@ -180,10 +185,10 @@ export function SettingsPage() {
                 key={t.id}
                 onClick={() => updateSettings({ theme: t.id as any })}
                 className={cn(
-                  'flex items-center justify-center gap-2 rounded-xl border p-3 text-sm transition focus-ring',
+                  'flex items-center justify-center gap-2 rounded-xl border p-3.5 text-sm transition focus-ring',
                   settings.theme === t.id
-                    ? 'border-accent/40 bg-accent/10'
-                    : 'border-border bg-bg-subtle/30 hover:bg-bg-muted'
+                    ? 'border-accent/40 bg-accent/[0.08] text-accent'
+                    : 'border-border-subtle bg-bg-subtle text-fg hover:bg-bg-muted'
                 )}
               >
                 <t.icon className="h-4 w-4" />
@@ -222,8 +227,8 @@ export function SettingsPage() {
               }}
             />
           </div>
-          <div className="mt-3">
-            <div className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-fg-muted">
+          <div className="mt-5">
+            <div className="mb-2 flex items-center gap-1.5 text-[11px] uppercase tracking-[0.18em] text-fg-subtle">
               <Sparkles className="h-3.5 w-3.5" /> Motion
             </div>
             <div className="grid grid-cols-3 gap-2">
@@ -244,10 +249,10 @@ export function SettingsPage() {
                       updateSettings({ juice: next })
                     }}
                     className={cn(
-                      'rounded-xl border p-2.5 text-xs transition focus-ring',
+                      'rounded-xl border p-3 text-xs transition focus-ring',
                       cur === m.id
-                        ? 'border-accent/40 bg-accent/10'
-                        : 'border-border bg-bg-subtle/30 hover:bg-bg-muted'
+                        ? 'border-accent/40 bg-accent/[0.08] text-accent'
+                        : 'border-border-subtle bg-bg-subtle text-fg hover:bg-bg-muted'
                     )}
                   >
                     {m.label}
@@ -285,7 +290,7 @@ export function SettingsPage() {
                 URL.revokeObjectURL(url)
                 toast.success('Exported', 'Your data is in the downloads folder.')
               }}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-bg-subtle px-3 py-2 text-sm transition hover:bg-bg-muted focus-ring"
+              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg-subtle px-4 py-2 text-sm font-medium text-fg transition hover:bg-bg-muted focus-ring"
             >
               <Download className="h-3.5 w-3.5" />
               Export all data
@@ -296,7 +301,7 @@ export function SettingsPage() {
                 await db.delete()
                 location.reload()
               }}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-danger/40 bg-danger/5 px-3 py-2 text-sm text-danger transition hover:bg-danger/10 focus-ring"
+              className="inline-flex items-center gap-1.5 rounded-full border border-danger/40 bg-danger/[0.06] px-4 py-2 text-sm font-medium text-danger transition hover:bg-danger/10 focus-ring"
             >
               <Trash2 className="h-3.5 w-3.5" />
               Delete everything
@@ -304,7 +309,7 @@ export function SettingsPage() {
           </div>
         </Section>
 
-        <div className="mt-12 text-center text-xs text-fg-subtle">
+        <div className="mt-16 border-t border-border-subtle pt-8 text-center text-[11px] uppercase tracking-[0.18em] text-fg-subtle">
           Hatch · Open source · Your data, your browser
         </div>
       </div>
@@ -314,10 +319,10 @@ export function SettingsPage() {
 
 function Section({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
   return (
-    <section className="mt-10">
-      <h2 className="text-base font-semibold">{title}</h2>
-      {description && <p className="mt-0.5 text-sm text-fg-muted">{description}</p>}
-      <div className="mt-4">{children}</div>
+    <section className="mt-12 border-t border-border-subtle pt-10">
+      <h2 className="font-serif text-2xl font-medium tracking-tight text-fg">{title}</h2>
+      {description && <p className="mt-1.5 max-w-prose text-sm text-fg-muted">{description}</p>}
+      <div className="mt-6">{children}</div>
     </section>
   )
 }
@@ -340,13 +345,13 @@ function ToggleRow({
       onClick={onToggle}
       role="switch"
       aria-checked={on}
-      className="flex w-full items-center gap-3 rounded-xl border border-border bg-bg-subtle/30 p-3 text-left transition hover:bg-bg-muted focus-ring"
+      className="flex w-full items-center gap-3.5 rounded-xl border border-border-subtle bg-bg-subtle p-4 text-left transition hover:bg-bg-muted focus-ring"
     >
-      <div className={cn('grid h-8 w-8 flex-shrink-0 place-items-center rounded-lg', on ? 'bg-accent/15 text-accent' : 'bg-bg-muted text-fg-subtle')}>
+      <div className={cn('grid h-9 w-9 flex-shrink-0 place-items-center rounded-lg', on ? 'bg-accent/[0.12] text-accent' : 'bg-bg-muted text-fg-subtle')}>
         <Icon className="h-4 w-4" />
       </div>
       <div className="flex-1 min-w-0">
-        <div className="text-sm font-medium">{label}</div>
+        <div className="text-sm font-medium text-fg">{label}</div>
         {hint && <div className="text-xs text-fg-muted">{hint}</div>}
       </div>
       <div className={cn('relative h-5 w-9 flex-shrink-0 rounded-full transition-colors', on ? 'bg-accent' : 'bg-bg-muted')}>
@@ -361,17 +366,17 @@ function ProviderRow({ info, isActive, isAvailable, browserAIReason, onSelect }:
     <button
       onClick={onSelect}
       className={cn(
-        'flex w-full items-start gap-3 rounded-2xl border p-4 text-left transition focus-ring',
-        isActive ? 'border-accent/40 bg-accent/5' : 'border-border bg-bg-subtle/30 hover:bg-bg-muted'
+        'flex w-full items-start gap-3.5 rounded-2xl border p-4 text-left transition focus-ring',
+        isActive ? 'border-accent/40 bg-accent/[0.08]' : 'border-border-subtle bg-bg-subtle hover:bg-bg-muted'
       )}
     >
-      <div className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-lg bg-bg-muted">
-        <Cpu className="h-4 w-4 text-fg-muted" />
+      <div className={cn('grid h-9 w-9 flex-shrink-0 place-items-center rounded-lg', isActive ? 'bg-accent/[0.12] text-accent' : 'bg-bg-muted text-fg-muted')}>
+        <Cpu className="h-4 w-4" />
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <div className="text-sm font-medium">{info.name}</div>
-          {isActive && <span className="rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] font-medium text-accent">default</span>}
+          <div className={cn('text-sm font-medium', isActive ? 'text-accent' : 'text-fg')}>{info.name}</div>
+          {isActive && <span className="rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-medium text-accent-fg">default</span>}
           {info.isBrowserBuiltIn && (
             <span className="rounded-full bg-success/15 px-1.5 py-0.5 text-[10px] font-medium text-success">free</span>
           )}
@@ -436,12 +441,12 @@ function ProviderKeyForm({ info, encryptedKey, hasPassphrase }: { info: Provider
   }
 
   return (
-    <div className="rounded-2xl border border-border bg-bg-subtle/30 p-4">
+    <div className="rounded-2xl border border-border-subtle bg-bg-subtle p-5">
       <div className="flex items-center justify-between">
         <div>
-          <div className="text-sm font-medium">{info.name}</div>
+          <div className="text-sm font-medium text-fg">{info.name}</div>
           {info.keyHelpUrl && (
-            <a href={info.keyHelpUrl} target="_blank" rel="noopener noreferrer" className="mt-0.5 inline-flex items-center gap-1 text-[10px] text-fg-muted hover:text-fg">
+            <a href={info.keyHelpUrl} target="_blank" rel="noopener noreferrer" className="mt-0.5 inline-flex items-center gap-1 text-[10px] text-accent hover:underline">
               Where do I get this key?
               <ExternalLink className="h-2.5 w-2.5" />
             </a>
@@ -466,7 +471,7 @@ function ProviderKeyForm({ info, encryptedKey, hasPassphrase }: { info: Provider
               value={apiKey}
               onChange={(e) => { setApiKey(e.target.value); setTestResult(null) }}
               placeholder={info.keyPlaceholder || 'API key'}
-              className="w-full rounded-lg border border-border bg-bg px-3 py-1.5 pr-8 text-sm placeholder:text-fg-subtle focus:border-fg/20 focus:outline-none focus:ring-2 focus:ring-accent/20"
+              className="w-full rounded-lg border border-border bg-bg px-3 py-2 pr-8 font-mono text-sm placeholder:font-sans placeholder:text-fg-subtle focus:border-accent/40 focus:outline-none focus:ring-2 focus:ring-accent/20"
               autoComplete="off"
               spellCheck={false}
             />
@@ -479,7 +484,7 @@ function ProviderKeyForm({ info, encryptedKey, hasPassphrase }: { info: Provider
               value={baseURL}
               onChange={(e) => setBaseURL(e.target.value)}
               placeholder="https://api.example.com/v1"
-              className="w-full rounded-lg border border-border bg-bg px-3 py-1.5 text-sm placeholder:text-fg-subtle focus:border-fg/20 focus:outline-none focus:ring-2 focus:ring-accent/20"
+              className="w-full rounded-lg border border-border bg-bg px-3 py-2 font-mono text-sm placeholder:font-sans placeholder:text-fg-subtle focus:border-accent/40 focus:outline-none focus:ring-2 focus:ring-accent/20"
             />
           )}
           {(info.needsModel || info.models) && (
@@ -488,7 +493,7 @@ function ProviderKeyForm({ info, encryptedKey, hasPassphrase }: { info: Provider
                 <select
                   value={model}
                   onChange={(e) => setModel(e.target.value)}
-                  className="w-full rounded-lg border border-border bg-bg px-3 py-1.5 text-sm focus:border-fg/20 focus:outline-none focus:ring-2 focus:ring-accent/20"
+                  className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm focus:border-accent/40 focus:outline-none focus:ring-2 focus:ring-accent/20"
                 >
                   {info.models.map((m) => (
                     <option key={m.id} value={m.id}>
@@ -501,7 +506,7 @@ function ProviderKeyForm({ info, encryptedKey, hasPassphrase }: { info: Provider
                   value={model}
                   onChange={(e) => setModel(e.target.value)}
                   placeholder={info.defaultModel || 'Model name'}
-                  className="w-full rounded-lg border border-border bg-bg px-3 py-1.5 text-sm placeholder:text-fg-subtle focus:border-fg/20 focus:outline-none focus:ring-2 focus:ring-accent/20"
+                  className="w-full rounded-lg border border-border bg-bg px-3 py-2 font-mono text-sm placeholder:font-sans placeholder:text-fg-subtle focus:border-accent/40 focus:outline-none focus:ring-2 focus:ring-accent/20"
                 />
               )}
             </div>
@@ -510,14 +515,14 @@ function ProviderKeyForm({ info, encryptedKey, hasPassphrase }: { info: Provider
             <button
               onClick={save}
               disabled={!apiKey.trim() || !hasPassphrase}
-              className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-accent-fg transition hover:shadow-glow focus-ring disabled:opacity-50"
+              className="rounded-full bg-accent px-4 py-2 text-xs font-medium text-accent-fg transition hover:shadow-glow focus-ring disabled:opacity-50"
             >
               Save key
             </button>
             <button
               onClick={test}
               disabled={!apiKey.trim() || testing}
-              className="rounded-lg border border-border bg-bg-subtle px-3 py-1.5 text-xs font-medium transition hover:bg-bg-muted focus-ring disabled:opacity-50"
+              className="rounded-full border border-border bg-bg-subtle px-4 py-2 text-xs font-medium text-fg transition hover:bg-bg-muted focus-ring disabled:opacity-50"
             >
               {testing ? 'Testing…' : 'Test connection'}
             </button>
@@ -566,9 +571,9 @@ function TavilyKeyForm({ hasPassphrase, encryptedKey }: { hasPassphrase: boolean
   }
 
   return (
-    <div className="rounded-xl border border-border bg-bg-subtle/30 p-3">
-      <div className="text-sm font-medium">Tavily API key (optional)</div>
-      <p className="text-[11px] text-fg-muted">Without a key, Hatch uses Tavily's free keyless tier (rate-limited).</p>
+    <div className="rounded-xl border border-border-subtle bg-bg-subtle p-4">
+      <div className="text-sm font-medium text-fg">Tavily API key (optional)</div>
+      <p className="mt-0.5 text-[11px] text-fg-muted">Without a key, Hatch uses Tavily's free keyless tier (rate-limited).</p>
       {encryptedKey ? (
         <div className="mt-2 flex items-center gap-2">
           <span className="flex items-center gap-1.5 text-xs text-success"><Check className="h-3 w-3" /> Key configured</span>
@@ -582,7 +587,7 @@ function TavilyKeyForm({ hasPassphrase, encryptedKey }: { hasPassphrase: boolean
               value={key}
               onChange={(e) => setKey(e.target.value)}
               placeholder="tvly-..."
-              className="w-full rounded-lg border border-border bg-bg px-3 py-1.5 pr-8 text-sm placeholder:text-fg-subtle focus:border-fg/20 focus:outline-none focus:ring-2 focus:ring-accent/20"
+              className="w-full rounded-lg border border-border bg-bg px-3 py-2 pr-8 font-mono text-sm placeholder:font-sans placeholder:text-fg-subtle focus:border-accent/40 focus:outline-none focus:ring-2 focus:ring-accent/20"
               autoComplete="off"
             />
             <button onClick={() => setShow((s) => !s)} className="absolute right-2 top-1/2 -translate-y-1/2 text-fg-subtle hover:text-fg">
@@ -592,7 +597,7 @@ function TavilyKeyForm({ hasPassphrase, encryptedKey }: { hasPassphrase: boolean
           <button
             onClick={save}
             disabled={!key.trim() || !hasPassphrase}
-            className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-accent-fg hover:shadow-glow disabled:opacity-50"
+            className="rounded-full bg-accent px-4 py-2 text-xs font-medium text-accent-fg transition hover:shadow-glow disabled:opacity-50"
           >
             Save
           </button>
@@ -616,15 +621,15 @@ function VerbListEditor({ agent, verbs, onChange }: { agent: any; verbs: string[
   }
 
   return (
-    <div className="rounded-2xl border border-border bg-bg-subtle/30 p-4">
-      <div className="flex items-center gap-2">
+    <div className="rounded-2xl border border-border-subtle bg-bg-subtle p-5">
+      <div className="flex items-center gap-2.5">
         <div
-          className="grid h-7 w-7 place-items-center rounded-lg text-base"
+          className="grid h-8 w-8 place-items-center rounded-lg text-base"
           style={{ backgroundColor: `hsl(var(--agent-${agent.color}) / 0.15)`, color: `hsl(var(--agent-${agent.color}))` }}
         >
           {agent.emoji}
         </div>
-        <div className="text-sm font-medium">{agent.name}'s verbs</div>
+        <div className="text-sm font-medium text-fg">{agent.name}'s verbs</div>
       </div>
       <div className="mt-3 flex flex-wrap gap-1.5">
         {verbs.map((v, i) => (
@@ -645,7 +650,7 @@ function VerbListEditor({ agent, verbs, onChange }: { agent: any; verbs: string[
             onChange={(e) => setNewVerb(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && add()}
             placeholder="Add verb…"
-            className="w-24 rounded-full border border-dashed border-border bg-bg px-2.5 py-0.5 text-xs placeholder:text-fg-subtle focus:border-fg/20 focus:outline-none"
+            className="w-24 rounded-full border border-dashed border-border bg-bg px-2.5 py-0.5 text-xs placeholder:text-fg-subtle focus:border-accent/40 focus:outline-none"
           />
         </div>
       </div>
@@ -670,8 +675,8 @@ function SearchTester({ provider, hasKey }: { provider: string; hasKey: boolean 
   const disabled = provider === 'none'
 
   return (
-    <div className="rounded-2xl border border-border bg-bg-subtle/30 p-3">
-      <div className="flex items-center gap-2 text-sm font-medium">
+    <div className="rounded-2xl border border-border-subtle bg-bg-subtle p-4">
+      <div className="flex items-center gap-2 text-sm font-medium text-fg">
         <Globe className="h-3.5 w-3.5 text-fg-muted" />
         Test the search pipeline
       </div>
@@ -686,12 +691,12 @@ function SearchTester({ provider, hasKey }: { provider: string; hasKey: boolean 
           onKeyDown={(e) => e.key === 'Enter' && run()}
           disabled={disabled || running}
           placeholder="e.g. Stripe pricing 2026"
-          className="flex-1 rounded-lg border border-border bg-bg px-2.5 py-1.5 text-xs placeholder:text-fg-subtle focus:border-fg/20 focus:outline-none disabled:opacity-50"
+          className="flex-1 rounded-lg border border-border bg-bg px-3 py-2 text-xs placeholder:text-fg-subtle focus:border-accent/40 focus:outline-none focus:ring-2 focus:ring-accent/20 disabled:opacity-50"
         />
         <button
           onClick={run}
           disabled={disabled || running || !query.trim()}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-accent-fg transition hover:shadow-glow focus-ring disabled:opacity-50"
+          className="inline-flex items-center gap-1.5 rounded-full bg-accent px-4 py-2 text-xs font-medium text-accent-fg transition hover:shadow-glow focus-ring disabled:opacity-50"
         >
           {running ? <Loader2 className="h-3 w-3 animate-spin" /> : <Globe className="h-3 w-3" />}
           {running ? 'Searching…' : 'Test search'}
@@ -730,7 +735,7 @@ function SearchTester({ provider, hasKey }: { provider: string; hasKey: boolean 
                   >
                     {r.title}
                   </a>
-                  <div className="truncate text-[10px] text-fg-subtle">{r.url}</div>
+                  <div className="truncate font-mono text-[10px] text-fg-subtle">{r.url}</div>
                   {r.snippet && <div className="mt-1 line-clamp-2 text-fg-muted">{r.snippet}</div>}
                 </li>
               ))}

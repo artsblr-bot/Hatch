@@ -201,7 +201,7 @@ function UserBubble({ content }: { content: string }) {
       transition={{ duration: 0.18 }}
       className="flex justify-end"
     >
-      <div className="max-w-[85%] rounded-3xl rounded-tr-md bg-fg px-4 py-2.5 text-sm text-bg shadow-soft">
+      <div className="max-w-[85%] rounded-2xl rounded-tr-md border border-border-subtle bg-bg-muted px-4 py-2.5 text-sm text-fg shadow-soft">
         <div className="whitespace-pre-wrap break-words">{content}</div>
       </div>
     </motion.div>
@@ -422,8 +422,8 @@ function ReasoningBlock({ text, live }: { text: string; live: boolean }) {
         onClick={() => setOpen((o) => !o)}
         className="flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] transition hover:bg-bg-muted/60"
       >
-        <Brain className="h-3.5 w-3.5 text-fg-muted" />
-        <span className="font-medium uppercase tracking-wider text-fg-muted">
+        <Brain className="h-3.5 w-3.5 text-accent" />
+        <span className="text-[11px] font-medium uppercase tracking-[0.18em] text-fg-muted">
           {live ? 'Thinking…' : 'View reasoning'}
         </span>
         {!open && preview && (
@@ -674,7 +674,7 @@ function ToolCallRow({
               : call.name
 
   return (
-    <div className={cn('overflow-hidden rounded-xl border text-[12px] transition', borderClass)}>
+    <div className={cn('overflow-hidden rounded-2xl border text-[12px] transition', borderClass)}>
       <button
         onClick={() => setOpen((o) => !o)}
         className="flex w-full items-center gap-2 px-3 py-2 text-left transition hover:bg-bg-muted/60"
@@ -1433,8 +1433,8 @@ function ArtifactCard({ artifact, sourceMessageId, conversationId }: { artifact:
       <div className="flex items-center gap-2 border-b border-border-subtle bg-bg-subtle/50 px-4 py-2">
         <div className="text-base">{template.emoji}</div>
         <div className="flex-1 min-w-0">
-          <div className="truncate text-sm font-semibold">{artifact.title || template.defaultTitle}</div>
-          <div className="text-[10px] uppercase tracking-wider text-fg-subtle">{template.name}</div>
+          <div className="truncate font-serif text-base font-medium tracking-tight text-fg">{artifact.title || template.defaultTitle}</div>
+          <div className="text-[11px] uppercase tracking-[0.18em] text-fg-subtle">{template.name}</div>
         </div>
         <button
           onClick={save}
