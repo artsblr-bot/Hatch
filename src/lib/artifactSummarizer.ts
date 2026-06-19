@@ -107,8 +107,9 @@ export async function summarizeArtifactText(artifact: Artifact): Promise<string 
     const { text } = await generateText({
       model,
       prompt,
-      // Compact request — keep temperature low, no streaming, no tools.
-      temperature: 0.2,
+      // No `temperature`: modern reasoning models (Claude Opus 4.7+/Sonnet 4.6,
+      // OpenAI o-series/GPT-5) reject a non-default temperature with a 400,
+      // which would silently break summaries on those defaults.
       maxRetries: 1,
       abortSignal: AbortSignal.timeout(20_000),
     })

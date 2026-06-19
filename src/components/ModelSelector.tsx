@@ -1,7 +1,15 @@
-import { useState, useRef, useEffect } from 'react'
-import { Cpu, Check, Search, Sparkles, ChevronDown } from 'lucide-react'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { Cpu, Check, Search, Sparkles, ChevronDown, RefreshCw, Loader2 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { PROVIDERS, getProviderModels, type ProviderId, type ModelInfo, type ModelTag } from '@/lib/providers'
+import {
+  PROVIDERS,
+  getProviderModels,
+  listAvailableModels,
+  type ProviderId,
+  type ModelInfo,
+  type ModelTag,
+  type ModelListResult,
+} from '@/lib/providers'
 import { cn } from '@/lib/utils'
 
 interface Props {
@@ -12,14 +20,14 @@ interface Props {
 }
 
 const TAG_STYLES: Record<ModelTag, string> = {
-  flagship: 'bg-amber-500/15 text-amber-700 dark:text-amber-300 ring-1 ring-amber-500/20',
-  smart: 'bg-violet-500/15 text-violet-700 dark:text-violet-300 ring-1 ring-violet-500/20',
-  fast: 'bg-sky-500/15 text-sky-700 dark:text-sky-300 ring-1 ring-sky-500/20',
-  reasoning: 'bg-rose-500/15 text-rose-700 dark:text-rose-300 ring-1 ring-rose-500/20',
-  cheap: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 ring-1 ring-emerald-500/20',
-  free: 'bg-teal-500/15 text-teal-700 dark:text-teal-300 ring-1 ring-teal-500/20',
-  'long-context': 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 ring-1 ring-indigo-500/20',
-  'open-source': 'bg-fuchsia-500/15 text-fuchsia-700 dark:text-fuchsia-300 ring-1 ring-fuchsia-500/20',
+  flagship: 'bg-sun-1/15 text-sun-1 ring-1 ring-sun-1/25',
+  smart: 'bg-accent/15 text-accent ring-1 ring-accent/25',
+  fast: 'bg-sun-3/15 text-sun-3 ring-1 ring-sun-3/25',
+  reasoning: 'bg-warning/15 text-warning ring-1 ring-warning/25',
+  cheap: 'bg-success/15 text-success ring-1 ring-success/25',
+  free: 'bg-success/20 text-success ring-1 ring-success/30',
+  'long-context': 'bg-fg/10 text-fg-muted ring-1 ring-border',
+  'open-source': 'bg-sun-2/15 text-sun-2 ring-1 ring-sun-2/25',
 }
 
 const TAG_ORDER: ModelTag[] = [
@@ -100,8 +108,35 @@ export function ModelSelector({ providerId, modelId, onChange, disabled }: Props
   const containerRef = useRef<HTMLDivElement>(null)
 
   const provider = PROVIDERS[providerId]
-  const models = getProviderModels(providerId)
+  const [live, setLive] = useState<ModelListResult | null>(null)
+  const [loadingModels, setLoadingModels] = useState(false)
+
+  // Show the live list (everything the user's key can access) when we have it,
+  // otherwise the curated catalog.
+  const models = live?.models ?? getProviderModels(providerId)
   const current = models.find((m) => m.id === modelId) || models.find((m) => m.recommended) || models[0]
+
+  // Drop the cached live list when the provider changes.
+  useEffect(() => {
+    setLive(null)
+  }, [providerId])
+
+  const loadModels = useCallback(async () => {
+    if (providerId === 'browser-ai') return
+    setLoadingModels(true)
+    try {
+      setLive(await listAvailableModels(providerId))
+    } finally {
+      setLoadingModels(false)
+    }
+  }, [providerId])
+
+  // Fetch the live model list the first time the dropdown opens for a provider.
+  useEffect(() => {
+    if (open && !live && !loadingModels && providerId !== 'browser-ai') {
+      void loadModels()
+    }
+  }, [open, live, loadingModels, providerId, loadModels])
 
   useEffect(() => {
     if (open) {
@@ -185,8 +220,22 @@ export function ModelSelector({ providerId, modelId, onChange, disabled }: Props
                 <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-subtle">
                   {provider.name} models
                 </div>
-                <div className="text-[10px] text-fg-muted">
-                  {models.length} {models.length === 1 ? 'model' : 'models'}
+                <div className="flex items-center gap-1.5">
+                  {loadingModels && <Loader2 className="h-3 w-3 animate-spin text-fg-subtle" />}
+                  <span className="text-[10px] text-fg-muted">
+                    {models.length} {models.length === 1 ? 'model' : 'models'}
+                  </span>
+                  {providerId !== 'browser-ai' && (
+                    <button
+                      type="button"
+                      onClick={() => void loadModels()}
+                      disabled={loadingModels}
+                      title="Refresh the list from your API key"
+                      className="rounded p-0.5 text-fg-subtle transition hover:bg-bg-muted hover:text-fg disabled:opacity-50"
+                    >
+                      <RefreshCw className={cn('h-3 w-3', loadingModels && 'animate-spin')} />
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -229,7 +278,12 @@ export function ModelSelector({ providerId, modelId, onChange, disabled }: Props
 
             <div className="mt-1 border-t border-border-subtle px-1 pt-2 pb-1">
               <p className="text-[10px] text-fg-muted">
-                Model applies to new messages. Switch providers in Settings.
+                {live?.source === 'live'
+                  ? `Live list from your ${provider.name} key. `
+                  : live?.note
+                    ? `${live.note} `
+                    : ''}
+                Applies to new messages.
               </p>
             </div>
           </motion.div>

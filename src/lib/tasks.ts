@@ -452,7 +452,8 @@ async function llmProposeTasks(artifact: Artifact, settings: Settings): Promise<
       model,
       system: systemPrompt,
       prompt: userPrompt,
-      temperature: 0.3,
+      // No `temperature`: modern reasoning models (Claude Opus 4.7+/Sonnet 4.6,
+      // OpenAI o-series/GPT-5) 400 on a non-default temperature.
       maxRetries: 1,
       abortSignal: AbortSignal.timeout(20_000),
     })
@@ -563,15 +564,18 @@ function relativeShort(ts: number, now: number = Date.now()): string {
 }
 
 export function sourceLabel(t: Task): { label: string; color: string } {
+  // `color` is a token-based class string (First Light sunrise/semantic family)
+  // so the chip follows the theme. Shape kept as { label, color } — TaskCard and
+  // the tasks smoke test both depend on it.
   switch (t.source) {
     case 'plan90':
-      return { label: 'Plan', color: 'text-sky-700 dark:text-sky-300 bg-sky-500/15' }
+      return { label: 'Plan', color: 'text-sun-3 bg-sun-3/15' }
     case 'strategy':
-      return { label: 'Strategy', color: 'text-violet-700 dark:text-violet-300 bg-violet-500/15' }
+      return { label: 'Strategy', color: 'text-accent bg-accent/15' }
     case 'chat':
-      return { label: 'Chat', color: 'text-emerald-700 dark:text-emerald-300 bg-emerald-500/15' }
+      return { label: 'Chat', color: 'text-success bg-success/15' }
     case 'review':
-      return { label: 'Review', color: 'text-amber-700 dark:text-amber-300 bg-amber-500/15' }
+      return { label: 'Review', color: 'text-sun-1 bg-sun-1/15' }
     case 'manual':
     default:
       return { label: 'Manual', color: 'text-fg-muted bg-bg-muted' }

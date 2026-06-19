@@ -23,15 +23,15 @@ interface Particle {
   duration: number
 }
 
-// Warm-biased, celebratory palette anchored on the yolk amber, with a couple
-// of cool notes so the burst still pops.
+// First Light sunrise palette — amber → rose → peach with warm gold notes.
+// Kept as literal HSL (not CSS vars): this is a hot, per-particle one-shot path.
 const COLORS = [
-  'hsl(15 52% 60%)',   // coral
-  'hsl(38 75% 62%)',   // amber companion
-  'hsl(168 42% 52%)',  // teal accent
-  'hsl(15 45% 50%)',   // deep coral
-  'hsl(45 70% 66%)',   // gold
-  'hsl(140 35% 52%)',  // sage
+  'hsl(28 88% 65%)',   // amber  (sun-1)
+  'hsl(4 70% 66%)',    // rose   (sun-2)
+  'hsl(24 90% 75%)',   // peach  (sun-3)
+  'hsl(38 90% 60%)',   // gold
+  'hsl(14 82% 62%)',   // warm coral
+  'hsl(45 84% 72%)',   // light gold
 ]
 
 /**

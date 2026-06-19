@@ -164,7 +164,7 @@ export function HtmlPreviewCard({ html, live, context }: Props) {
             </div>
           )
         ) : (
-          <pre className="max-h-[480px] overflow-auto bg-[#0E0E0E] p-4 text-[12px] leading-relaxed text-fg-muted">
+          <pre className="max-h-[480px] overflow-auto bg-bg-muted p-4 text-[12px] leading-relaxed text-fg-muted">
             <code className="font-mono whitespace-pre">{debouncedHtml}</code>
             {live && (
               <span className="ml-0.5 inline-block h-3 w-1.5 -translate-y-px animate-pulse rounded-sm bg-fg-muted align-middle" />

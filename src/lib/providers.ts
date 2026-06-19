@@ -153,43 +153,39 @@ const OPENAI_MODELS: ModelInfo[] = [
   },
 ]
 
+// Note: native reasoning ("View Reasoning") is intentionally left OFF for
+// Anthropic. Current Claude models use adaptive thinking; the installed
+// @ai-sdk/anthropic ^2.0.0 predates it and only accepts the old
+// enabled/budget_tokens shape, which 400s on these models. Until the SDK is
+// upgraded, we omit the thinking param so Claude answers reliably. (The correct
+// adaptive option is staged in getReasoningProviderOptions for when it is.)
 const ANTHROPIC_MODELS: ModelInfo[] = [
   {
-    id: 'claude-sonnet-4-5',
-    name: 'Claude Sonnet 4.5',
-    description: 'Latest Sonnet. Best balance of intelligence and speed.',
+    id: 'claude-opus-4-8',
+    name: 'Claude Opus 4.8',
+    description: 'Anthropic\'s most capable model. Best for hard reasoning, long agentic work, and writing.',
     tags: ['flagship', 'smart', 'long-context'],
-    contextWindow: 200_000,
+    contextWindow: 1_000_000,
+  },
+  {
+    id: 'claude-sonnet-4-6',
+    name: 'Claude Sonnet 4.6',
+    description: 'Best balance of intelligence and speed. Great default for most work.',
+    tags: ['flagship', 'smart', 'long-context'],
+    contextWindow: 1_000_000,
     recommended: true,
-    supportsReasoning: true,
   },
   {
-    id: 'claude-opus-4-1',
-    name: 'Claude Opus 4.1',
-    description: 'Top-tier reasoning and writing quality. Slower, pricier.',
-    tags: ['flagship', 'smart', 'long-context'],
-    contextWindow: 200_000,
-    supportsReasoning: true,
-  },
-  {
-    id: 'claude-3-7-sonnet-latest',
-    name: 'Claude 3.7 Sonnet',
-    description: 'Hybrid reasoning. Fast replies OR extended thinking.',
-    tags: ['flagship', 'smart', 'reasoning', 'long-context'],
-    contextWindow: 200_000,
-    supportsReasoning: true,
-  },
-  {
-    id: 'claude-3-5-sonnet-latest',
-    name: 'Claude 3.5 Sonnet',
-    description: 'Previous flagship. Still excellent.',
+    id: 'claude-opus-4-7',
+    name: 'Claude Opus 4.7',
+    description: 'Previous-generation Opus. Highly capable on long-horizon and agentic tasks.',
     tags: ['smart', 'long-context'],
-    contextWindow: 200_000,
+    contextWindow: 1_000_000,
   },
   {
-    id: 'claude-3-5-haiku-latest',
-    name: 'Claude 3.5 Haiku',
-    description: 'Fastest Claude. Cheap, great for short replies.',
+    id: 'claude-haiku-4-5',
+    name: 'Claude Haiku 4.5',
+    description: 'Fastest, most affordable Claude. Great for quick replies.',
     tags: ['fast', 'cheap', 'smart'],
     contextWindow: 200_000,
   },
@@ -223,13 +219,6 @@ const OPENAI_COMPATIBLE_MODELS: ModelInfo[] = [
     contextWindow: 131_072,
   },
   {
-    id: 'mixtral-8x7b-32768',
-    name: 'Mixtral 8x7B',
-    description: 'Open MoE model. Solid all-rounder.',
-    tags: ['open-source', 'smart'],
-    contextWindow: 32_768,
-  },
-  {
     id: 'gemma2-9b-it',
     name: 'Gemma 2 9B',
     description: 'Google\'s small open model. Good for cheap inference.',
@@ -238,46 +227,61 @@ const OPENAI_COMPATIBLE_MODELS: ModelInfo[] = [
   },
 ]
 
+// IDs verified against NVIDIA's NIM catalog (integrate.api.nvidia.com/v1).
 const NVIDIA_NIM_MODELS: ModelInfo[] = [
   {
-    id: 'meta/llama-3.1-70b-instruct',
-    name: 'Llama 3.1 70B Instruct',
-    description: 'Open-weights 70B. Strong general-purpose.',
+    id: 'meta/llama-3.3-70b-instruct',
+    name: 'Llama 3.3 70B Instruct',
+    description: 'Meta\'s strong open-weights 70B. Great general-purpose default.',
     tags: ['flagship', 'smart', 'open-source', 'long-context'],
     contextWindow: 131_072,
     recommended: true,
+  },
+  {
+    id: 'nvidia/llama-3.3-nemotron-super-49b-v1.5',
+    name: 'Llama 3.3 Nemotron Super 49B',
+    description: 'NVIDIA-tuned for agents and reasoning. Strong and efficient.',
+    tags: ['smart', 'reasoning', 'open-source', 'long-context'],
+    contextWindow: 131_072,
+    supportsReasoning: true,
+  },
+  {
+    id: 'nvidia/llama-3.1-nemotron-70b-instruct',
+    name: 'Llama 3.1 Nemotron 70B',
+    description: 'NVIDIA-tuned 70B with strong instruction following.',
+    tags: ['smart', 'open-source', 'long-context'],
+    contextWindow: 131_072,
+  },
+  {
+    id: 'deepseek-ai/deepseek-r1',
+    name: 'DeepSeek R1',
+    description: 'Open reasoning model. Long chain-of-thought before answering.',
+    tags: ['reasoning', 'smart', 'open-source', 'long-context'],
+    contextWindow: 131_072,
+    supportsReasoning: true,
+  },
+  {
+    id: 'deepseek-ai/deepseek-r1-distill-llama-70b',
+    name: 'DeepSeek R1 Distill 70B',
+    description: 'Faster distilled R1. Reasoning at lower cost.',
+    tags: ['reasoning', 'open-source', 'long-context'],
+    contextWindow: 131_072,
+    supportsReasoning: true,
+  },
+  {
+    id: 'qwen/qwen3-32b',
+    name: 'Qwen3 32B',
+    description: 'Alibaba\'s capable multilingual model with a thinking mode.',
+    tags: ['smart', 'reasoning', 'open-source', 'long-context'],
+    contextWindow: 131_072,
     supportsReasoning: true,
   },
   {
     id: 'meta/llama-3.1-8b-instruct',
     name: 'Llama 3.1 8B Instruct',
-    description: 'Cheap, fast 8B. Good default for simple tasks.',
+    description: 'Small and fast. Good for simple, cheap inference.',
     tags: ['fast', 'cheap', 'open-source'],
     contextWindow: 131_072,
-  },
-  {
-    id: 'meta/llama-3.3-70b-instruct',
-    name: 'Llama 3.3 70B Instruct',
-    description: 'Newer 70B. Stronger than 3.1 70B.',
-    tags: ['flagship', 'smart', 'open-source', 'long-context'],
-    contextWindow: 131_072,
-    supportsReasoning: true,
-  },
-  {
-    id: 'deepseek-ai/deepseek-r1',
-    name: 'DeepSeek R1',
-    description: 'Open reasoning model. Long chain-of-thought.',
-    tags: ['reasoning', 'smart', 'open-source', 'long-context'],
-    contextWindow: 64_000,
-    supportsReasoning: true,
-  },
-  {
-    id: 'qwen/qwen2.5-72b-instruct',
-    name: 'Qwen 2.5 72B Instruct',
-    description: 'Alibaba\'s flagship 72B. Multilingual.',
-    tags: ['flagship', 'smart', 'open-source', 'long-context'],
-    contextWindow: 131_072,
-    supportsReasoning: true,
   },
 ]
 
@@ -318,7 +322,7 @@ export const PROVIDERS: Record<ProviderId, ProviderInfo> = {
   anthropic: {
     id: 'anthropic',
     name: 'Anthropic Claude',
-    description: 'Claude Sonnet 4.5, Opus 4.1, 3.7, 3.5 Sonnet/Haiku.',
+    description: 'Claude Opus 4.8, Opus 4.7, Sonnet 4.6, and Haiku 4.5.',
     needsApiKey: true,
     keyHint: 'Starts with sk-ant-...',
     keyPlaceholder: 'sk-ant-...',
@@ -378,6 +382,120 @@ export function describeModel(providerId: ProviderId, modelId: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// Live model discovery — list every model the user's key can actually access
+// by querying the provider's /v1/models endpoint, instead of only the curated
+// catalog above. Curated metadata (name, tags, context) is merged in when the
+// id is known; unknown ids are shown with a humanized name.
+// ---------------------------------------------------------------------------
+
+// Endpoints return lots of non-chat models (embeddings, audio, image, rerank,
+// safety/guard, retrievers…). Filter them out so the picker stays useful.
+const NON_CHAT_MODEL_RE =
+  /(embed|embedding|whisper|tts|text-to-speech|\bstt\b|transcrib|\baudio\b|realtime|dall-?e|\bimage\b|moderation|rerank|guard|\bclip\b|retriever|nemoretriever|arctic-embed|\bbge\b|flux|stable-diffusion|sdxl|sana|riva|parakeet|canary|cosmos|maxine|ocdrnet|\bada\b|babbage|curie|davinci)/i
+
+export function isLikelyChatModel(id: string): boolean {
+  return !!id && !NON_CHAT_MODEL_RE.test(id)
+}
+
+function humanizeModelId(id: string): string {
+  const base = id.includes('/') ? id.split('/').slice(-1)[0] : id
+  const titled = base
+    .replace(/[-_]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+  return titled.replace(/\bAi\b/g, 'AI').replace(/\bLlm\b/g, 'LLM')
+}
+
+function syntheticModel(id: string): ModelInfo {
+  return { id, name: humanizeModelId(id), description: 'Available with your API key.', tags: [] }
+}
+
+/**
+ * Fetch the raw list of model ids a key can access from the provider's
+ * OpenAI-style /v1/models endpoint (Anthropic uses its own shape). Throws on
+ * network/HTTP errors so the caller can fall back to the catalog.
+ */
+export async function fetchProviderModelList(
+  providerId: ProviderId,
+  apiKey: string,
+  baseURL?: string
+): Promise<string[]> {
+  if (providerId === 'anthropic') {
+    const res = await fetch('https://api.anthropic.com/v1/models?limit=1000', {
+      headers: {
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+    })
+    if (!res.ok) throw new Error(`Anthropic /models returned ${res.status}`)
+    const json = await res.json()
+    return (json?.data ?? []).map((m: any) => m?.id).filter(Boolean)
+  }
+
+  const base =
+    providerId === 'openai'
+      ? 'https://api.openai.com/v1'
+      : providerId === 'nvidia-nim'
+        ? baseURL || 'https://integrate.api.nvidia.com/v1'
+        : baseURL // openai-compatible
+  if (!base) throw new Error('No base URL configured for this provider.')
+
+  const res = await fetch(`${base.replace(/\/+$/, '')}/models`, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+  })
+  if (!res.ok) throw new Error(`/models returned ${res.status}`)
+  const json = await res.json()
+  const data = json?.data ?? json?.models ?? []
+  return data.map((m: any) => m?.id ?? m?.name).filter(Boolean)
+}
+
+export interface ModelListResult {
+  models: ModelInfo[]
+  /** 'live' = fetched from the provider with the user's key; 'catalog' = built-in fallback. */
+  source: 'live' | 'catalog'
+  /** Why we fell back to the catalog (vault locked, no key, network error…). */
+  note?: string
+}
+
+/**
+ * List the models available to the user's stored key for a provider, merged
+ * with curated metadata. Never throws — falls back to the curated catalog with
+ * a `note` explaining why (locked vault, missing key, network/CORS error).
+ */
+export async function listAvailableModels(providerId: ProviderId): Promise<ModelListResult> {
+  const catalog = getProviderModels(providerId)
+  if (providerId === 'browser-ai') return { models: catalog, source: 'catalog' }
+
+  try {
+    const settings = await ensureSettings()
+    const creds = await decryptProviderKey(settings.encryptedKeys[providerId])
+    if (!creds?.apiKey) {
+      return { models: catalog, source: 'catalog', note: 'Add an API key to list all available models.' }
+    }
+    const ids = await fetchProviderModelList(providerId, creds.apiKey, creds.baseURL)
+    const chat = ids.filter(isLikelyChatModel)
+    if (chat.length === 0) {
+      return { models: catalog, source: 'catalog', note: 'The provider returned no chat models.' }
+    }
+    // Prefer curated metadata where we have it; synthesize the rest. De-dupe by id.
+    const seen = new Set<string>()
+    const models: ModelInfo[] = []
+    for (const id of chat) {
+      if (seen.has(id)) continue
+      seen.add(id)
+      models.push(getModelInfo(providerId, id) ?? syntheticModel(id))
+    }
+    return { models, source: 'live' }
+  } catch (e: any) {
+    const msg = e?.message ? String(e.message) : String(e)
+    const note = /locked/i.test(msg) ? 'Unlock your vault to list all available models.' : `Couldn't reach the provider (${msg}). Showing built-in models.`
+    return { models: catalog, source: 'catalog', note }
+  }
+}
+
+// ---------------------------------------------------------------------------
 
 async function decryptProviderKey(
   encrypted?: EncryptedEnvelope
@@ -406,9 +524,20 @@ export async function getModel(providerId: ProviderId, modelId?: string): Promis
       `No API key configured for ${PROVIDERS[providerId].name}. Add one in Settings.`
     )
   }
-  const resolvedModel = modelId && modelId.length > 0 ? modelId : getDefaultModelFor(providerId)
+  let resolvedModel = modelId && modelId.length > 0 ? modelId : getDefaultModelFor(providerId)
   if (!resolvedModel) {
     throw new Error(`No model specified and no default available for ${PROVIDERS[providerId].name}.`)
+  }
+  // Auto-heal a stale stored model id. OpenAI and Anthropic are catalog-only
+  // (the UI never lets you type a free-form id), so an id that's no longer in
+  // the catalog is a retired/renamed model that would 404 — fall back to the
+  // provider's current default. (NVIDIA / OpenAI-compatible allow custom ids,
+  // so they're left as-is.)
+  if (
+    (providerId === 'anthropic' || providerId === 'openai') &&
+    !getModelInfo(providerId, resolvedModel)
+  ) {
+    resolvedModel = getDefaultModelFor(providerId) || resolvedModel
   }
   switch (providerId) {
     case 'openai': {
@@ -507,9 +636,12 @@ export function getReasoningProviderOptions(
   modelId: string
 ): Record<string, any> | undefined {
   if (providerId === 'anthropic') {
+    // Current Claude models (Opus 4.7/4.8, Sonnet 4.6) removed the fixed
+    // `budget_tokens` thinking budget — sending it returns a 400. Adaptive
+    // thinking is the supported replacement; the model decides how much to think.
     return {
       anthropic: {
-        thinking: { type: 'enabled', budgetTokens: 10000 },
+        thinking: { type: 'adaptive' },
       },
     }
   }
@@ -594,7 +726,7 @@ export async function testProviderConnection(
           apiKey,
           headers: { 'anthropic-dangerous-direct-browser-access': 'true' },
         })
-        lm = anthropic(resolvedModel || 'claude-3-5-sonnet-latest')
+        lm = anthropic(resolvedModel || 'claude-sonnet-4-6')
         break
       }
       case 'nvidia-nim': {
@@ -603,7 +735,7 @@ export async function testProviderConnection(
           apiKey,
           baseURL: baseURL || 'https://integrate.api.nvidia.com/v1',
         })
-        lm = nim(resolvedModel || 'meta/llama-3.1-70b-instruct')
+        lm = nim(resolvedModel || 'meta/llama-3.3-70b-instruct')
         break
       }
       case 'openai-compatible': {

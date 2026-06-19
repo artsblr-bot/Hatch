@@ -516,12 +516,12 @@ function ProfileTab({ toast }: { toast: ReturnType<typeof useToast> }) {
 // ---------------------------------------------------------------------------
 
 const NODE_TYPE_COLORS: Record<string, { badge: string; dot: string }> = {
-  insight:  { badge: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',   dot: 'bg-amber-500' },
-  decision: { badge: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300', dot: 'bg-emerald-500' },
-  context:  { badge: 'bg-sky-500/15 text-sky-700 dark:text-sky-300',         dot: 'bg-sky-500' },
-  metric:   { badge: 'bg-violet-500/15 text-violet-700 dark:text-violet-300', dot: 'bg-violet-500' },
-  question: { badge: 'bg-orange-500/15 text-orange-700 dark:text-orange-300', dot: 'bg-orange-500' },
-  learning: { badge: 'bg-rose-500/15 text-rose-700 dark:text-rose-300',      dot: 'bg-rose-500' },
+  insight:  { badge: 'bg-sun-1/15 text-sun-1',     dot: 'bg-sun-1' },
+  decision: { badge: 'bg-success/15 text-success', dot: 'bg-success' },
+  context:  { badge: 'bg-sun-3/15 text-sun-3',     dot: 'bg-sun-3' },
+  metric:   { badge: 'bg-accent/15 text-accent',   dot: 'bg-accent' },
+  question: { badge: 'bg-warning/15 text-warning', dot: 'bg-warning' },
+  learning: { badge: 'bg-sun-2/15 text-sun-2',     dot: 'bg-sun-2' },
 }
 
 function ArchiveTab({ toast }: { toast: ReturnType<typeof useToast> }) {

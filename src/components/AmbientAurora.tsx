@@ -4,18 +4,18 @@ interface Props {
   className?: string
   /** Number of blobs (2-4). */
   intensity?: 1 | 2 | 3
-  /** Tint color — defaults to the brand orange. */
+  /** Tint family — defaults to the First Light sunrise (amber → rose → peach). */
   color?: 'orange' | 'violet' | 'teal' | 'mix'
   /** Render fixed to the viewport (default true) */
   fixed?: boolean
 }
 
 const PALETTES = {
-  // Claude-editorial warm tones — coral drifting into amber, with a teal note.
-  orange: ['hsl(15, 52%, 62%)', 'hsl(38, 70%, 64%)'],
+  // Sunrise family — reads CSS vars so the glow tracks the active theme.
+  orange: ['hsl(var(--sun-1))', 'hsl(var(--sun-2))'],
   violet: ['hsl(265, 90%, 65%)', 'hsl(290, 80%, 60%)'],
   teal: ['hsl(168, 40%, 55%)', 'hsl(190, 50%, 58%)'],
-  mix: ['hsl(15, 52%, 62%)', 'hsl(38, 70%, 64%)', 'hsl(168, 40%, 55%)'],
+  mix: ['hsl(var(--sun-1))', 'hsl(var(--sun-2))', 'hsl(var(--sun-3))'],
 } as const
 
 /**

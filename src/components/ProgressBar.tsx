@@ -44,7 +44,7 @@ export function ProgressBar({
       >
         <motion.div
           className={cn(
-            'h-full rounded-full bg-gradient-to-r from-accent to-orange-400',
+            'h-full rounded-full bg-gradient-to-r from-accent to-sun-1',
             near && 'shadow-[0_0_10px_hsl(var(--accent)/0.7)]'
           )}
           initial={{ width: 0 }}

@@ -7,7 +7,10 @@ export default {
       fontFamily: {
         sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
         mono: ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'monospace'],
-        serif: ['"Cormorant Garamond"', 'ui-serif', 'Georgia', 'serif'],
+        display: ['"Bricolage Grotesque"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        // `serif` is aliased to the display face so existing `font-serif`
+        // call sites adopt First Light without per-site edits.
+        serif: ['"Bricolage Grotesque"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
       },
       colors: {
         bg: {
@@ -29,9 +32,14 @@ export default {
           fg: 'hsl(var(--accent-fg) / <alpha-value>)',
         },
         brand: {
-          orange: '#FF6B1A',
-          'orange-pressed': '#E85A0A',
-          black: '#0E0E0E',
+          orange: 'hsl(var(--accent) / <alpha-value>)',
+          'orange-pressed': 'hsl(var(--brand-orange-pressed) / <alpha-value>)',
+          black: 'hsl(var(--brand-black) / <alpha-value>)',
+        },
+        sun: {
+          1: 'hsl(var(--sun-1) / <alpha-value>)',
+          2: 'hsl(var(--sun-2) / <alpha-value>)',
+          3: 'hsl(var(--sun-3) / <alpha-value>)',
         },
         ring: 'hsl(var(--ring) / <alpha-value>)',
         success: 'hsl(var(--success) / <alpha-value>)',
@@ -87,13 +95,13 @@ export default {
           '100%': { transform: 'translateX(100%) scaleX(0.5)' },
         },
         'orb-breathe': {
-          '0%, 100%': { transform: 'scale(1)', boxShadow: '0 0 24px hsl(15 58% 63% / 0.20)' },
-          '50%':       { transform: 'scale(1.07)', boxShadow: '0 0 44px hsl(15 58% 63% / 0.36)' },
+          '0%, 100%': { transform: 'scale(1)', boxShadow: '0 0 24px hsl(var(--sun-1) / 0.20)' },
+          '50%':       { transform: 'scale(1.07)', boxShadow: '0 0 44px hsl(var(--sun-1) / 0.36)' },
         },
         'done-glow': {
-          '0%':   { boxShadow: '0 0 0 0 hsl(15 58% 63% / 0)' },
-          '25%':  { boxShadow: '0 0 0 4px hsl(15 58% 63% / 0.20)' },
-          '100%': { boxShadow: '0 0 0 0 hsl(15 58% 63% / 0)' },
+          '0%':   { boxShadow: '0 0 0 0 hsl(var(--sun-1) / 0)' },
+          '25%':  { boxShadow: '0 0 0 4px hsl(var(--sun-1) / 0.20)' },
+          '100%': { boxShadow: '0 0 0 0 hsl(var(--sun-1) / 0)' },
         },
         'check-pop': {
           '0%':  { transform: 'scale(0) rotate(-20deg)', opacity: '0' },
@@ -124,6 +132,10 @@ export default {
         'shimmer-gradient': 'linear-gradient(90deg, transparent, hsl(var(--fg-subtle) / 0.08), transparent)',
         'dot-grid': 'radial-gradient(hsl(var(--border) / 0.4) 1px, transparent 1px)',
         'radial-fade': 'radial-gradient(circle at top, hsl(var(--accent) / 0.08), transparent 60%)',
+        // Sunrise — reserved for hero / signature / one primary CTA per screen
+        'sunrise': 'linear-gradient(100deg, hsl(var(--sun-1)), hsl(var(--sun-2)) 55%, hsl(var(--sun-3)))',
+        'sunrise-soft': 'linear-gradient(100deg, hsl(var(--sun-1) / 0.16), hsl(var(--sun-2) / 0.12) 55%, hsl(var(--sun-3) / 0.16))',
+        'sunrise-radial': 'radial-gradient(120% 100% at 50% 100%, hsl(var(--sun-1) / 0.45), hsl(var(--sun-2) / 0.22) 40%, transparent 72%)',
       },
       backgroundSize: {
         'dot-grid': '24px 24px',

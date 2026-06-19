@@ -253,7 +253,7 @@ function WelcomeStep({ onNext }: { onNext: () => void }) {
 }
 
 // ---------------------------------------------------------------------------
-// Step 1 — Vault
+// Step 2 — Vault (password) — comes after the idea, by design
 // ---------------------------------------------------------------------------
 
 const STRENGTH_CONFIG = {
@@ -414,7 +414,7 @@ function VaultStep({ onNext, onBack }: { onNext: (dek: CryptoKey) => void; onBac
 }
 
 // ---------------------------------------------------------------------------
-// Step 2 — Business (Typeform-style)
+// Step 1 — Business / idea (idea-first: value before the password)
 // ---------------------------------------------------------------------------
 
 const STAGE_OPTIONS = [
@@ -604,8 +604,8 @@ function EngineStep({ dek, onNext, onBack }: { dek: CryptoKey; onNext: () => voi
       const baseURL = provider === 'groq' ? 'https://api.groq.com/openai/v1' : undefined
       const model =
         provider === 'groq' ? 'llama-3.3-70b-versatile' :
-        provider === 'anthropic' ? 'claude-3-5-haiku-latest' :
-        provider === 'nvidia-nim' ? 'meta/llama-3.1-70b-instruct' :
+        provider === 'anthropic' ? 'claude-sonnet-4-6' :
+        provider === 'nvidia-nim' ? 'meta/llama-3.3-70b-instruct' :
         'gpt-4o-mini'
       const encrypted = await encrypt(dek, JSON.stringify({ apiKey: apiKey.trim(), baseURL, model }))
       await updateSettings({ defaultProvider: providerId, defaultModel: model, encryptedKeys: { [providerId]: encrypted } })

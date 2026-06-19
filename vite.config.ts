@@ -1,14 +1,24 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
 import path from 'path'
+import { createRequire } from 'module'
 
-export default defineConfig({
+// node_modules live on D:\ (J:\ is exFAT — no symlinks/junctions possible).
+const require = createRequire('D:/hatch-modules/node_modules/')
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const react = (require('@vitejs/plugin-react') as any).default
+
+export default {
   plugins: [react()],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
     },
+    modules: ['D:\\hatch-modules\\node_modules', 'node_modules'],
   },
+  optimizeDeps: {
+    include: ['react', 'react-dom', 'react-router-dom', 'framer-motion', 'dexie', 'dexie-react-hooks'],
+    entries: ['J:/Project Data/Hatch/src/**/*.{ts,tsx}'],
+  },
+  cacheDir: 'D:/hatch-modules/.vite',
   server: {
     port: 5173,
     host: true,
@@ -26,4 +36,4 @@ export default defineConfig({
       },
     },
   },
-})
+}
