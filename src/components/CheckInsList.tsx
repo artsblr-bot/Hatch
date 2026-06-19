@@ -14,7 +14,7 @@ import {
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, type CheckIn } from '@/lib/db'
 import { weekStart } from '@/lib/tasks'
-import { EndWeekDialog } from './EndWeekDialog'
+import { useRitual } from './ritual/RitualProvider'
 import { cn } from '@/lib/utils'
 
 function calcCheckInStreak(checkIns: CheckIn[]): number {
@@ -37,7 +37,7 @@ export function CheckInsList() {
     () => db.checkIns.orderBy('weekOf').reverse().toArray(),
     []
   ) || []
-  const [open, setOpen] = useState(false)
+  const { openEndWeek } = useRitual()
 
   const thisWeek = weekStart()
   const alreadyThisWeek = checkIns.some((c) => c.weekOf === thisWeek)
@@ -85,7 +85,7 @@ export function CheckInsList() {
           )}
         </div>
         <button
-          onClick={() => setOpen(true)}
+          onClick={openEndWeek}
           disabled={alreadyThisWeek}
           className={cn(
             'inline-flex items-center gap-1.5 rounded-2xl px-4 py-2 text-sm font-medium transition focus-ring',
@@ -129,7 +129,7 @@ export function CheckInsList() {
                 )}
               </div>
               <motion.button
-                onClick={() => setOpen(true)}
+                onClick={openEndWeek}
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.97 }}
                 animate={{
@@ -151,7 +151,7 @@ export function CheckInsList() {
       )}
 
       {checkIns.length === 0 ? (
-        <EmptyState onStart={() => setOpen(true)} />
+        <EmptyState onStart={openEndWeek} />
       ) : (
         <div className="space-y-3">
           <AnimatePresence initial={false}>
@@ -161,8 +161,6 @@ export function CheckInsList() {
           </AnimatePresence>
         </div>
       )}
-
-      <EndWeekDialog open={open} onClose={() => setOpen(false)} />
     </div>
   )
 }

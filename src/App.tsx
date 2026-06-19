@@ -16,6 +16,8 @@ import { Vault } from './pages/Vault'
 import { AppShell } from './components/AppShell'
 import { CelebrationProvider } from './components/Celebration'
 import { MilestoneWatcher } from './components/MilestoneWatcher'
+import { RitualProvider } from './components/ritual/RitualProvider'
+import { CommandProvider } from './components/command/CommandProvider'
 import { setJuicePrefs } from './lib/juice'
 
 function App() {
@@ -84,19 +86,23 @@ function App() {
     <ToastProvider>
       <CelebrationProvider>
         <MilestoneWatcher />
-        <Routes>
-          <Route path="/welcome" element={<Onboarding />} />
-          <Route path="/vault" element={<Vault />} />
-          <Route element={<AppShell />}>
-            <Route path="/" element={<Landing />} />
-            <Route path="/chat" element={<ChatPage />} />
-            <Route path="/chat/:conversationId" element={<ChatPage />} />
-            <Route path="/library" element={<Library />} />
-            <Route path="/memory" element={<Memory />} />
-            <Route path="/settings" element={<SettingsPage />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Route>
-        </Routes>
+        <RitualProvider>
+          <CommandProvider>
+            <Routes>
+              <Route path="/welcome" element={<Onboarding />} />
+              <Route path="/vault" element={<Vault />} />
+              <Route element={<AppShell />}>
+                <Route path="/" element={<Landing />} />
+                <Route path="/chat" element={<ChatPage />} />
+                <Route path="/chat/:conversationId" element={<ChatPage />} />
+                <Route path="/library" element={<Library />} />
+                <Route path="/memory" element={<Memory />} />
+                <Route path="/settings" element={<SettingsPage />} />
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Route>
+            </Routes>
+          </CommandProvider>
+        </RitualProvider>
       </CelebrationProvider>
     </ToastProvider>
   )
