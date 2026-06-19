@@ -1,24 +1,18 @@
 import path from 'path'
-import { createRequire } from 'module'
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
 
-// node_modules live on D:\ (J:\ is exFAT — no symlinks/junctions possible).
-const require = createRequire('D:/hatch-modules/node_modules/')
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const react = (require('@vitejs/plugin-react') as any).default
-
-export default {
+// Portable config — resolves dependencies via standard node_modules lookup so it
+// works on Vercel (and any clean checkout), not just this dev machine.
+// (Local builds on the exFAT USB run through the D:\hatch-build sandbox, whose
+// node_modules is junctioned to the real module set — see project memory.)
+export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
     },
-    modules: ['D:\\hatch-modules\\node_modules', 'node_modules'],
   },
-  optimizeDeps: {
-    include: ['react', 'react-dom', 'react-router-dom', 'framer-motion', 'dexie', 'dexie-react-hooks'],
-    entries: ['J:/Project Data/Hatch/src/**/*.{ts,tsx}'],
-  },
-  cacheDir: 'D:/hatch-modules/.vite',
   server: {
     port: 5173,
     host: true,
@@ -36,4 +30,4 @@ export default {
       },
     },
   },
-}
+})
