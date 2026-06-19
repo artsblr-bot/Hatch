@@ -5,7 +5,6 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   CheckCircle2,
   Circle,
-  ListTodo,
   Plus,
   Sparkles,
   Calendar,
@@ -23,7 +22,7 @@ import {
   addTask,
 } from '@/lib/tasks'
 import { TaskCard } from './TaskCard'
-import { ProgressBar } from './ProgressBar'
+import { MomentumRing } from './MomentumRing'
 import { CountUp } from './CountUp'
 import { useToast } from './Toast'
 import { useCelebrate } from './Celebration'
@@ -96,6 +95,16 @@ export function TodayPanel() {
   const hiddenCount = Math.max(0, open.length - visible.length)
   const totalCount = tasks.length
 
+  // A warm, forward-looking status line — celebrates progress, never scolds.
+  const momentumLine =
+    totalCount === 0
+      ? "A fresh week — what's the first move?"
+      : open.length === 0
+        ? 'Every task done. Beautiful work.'
+        : open.length === 1
+          ? "One left — you're almost there."
+          : `${done.length} of ${totalCount} done · momentum's building`
+
   const weekLabel = `${new Date(thisWeek).toLocaleDateString(undefined, {
     month: 'short',
     day: 'numeric',
@@ -121,17 +130,13 @@ export function TodayPanel() {
       className="relative overflow-hidden rounded-2xl border border-border bg-bg-subtle/40 backdrop-blur-sm"
     >
       <div className="flex items-center gap-3 border-b border-border-subtle px-4 py-3">
-        <div className="grid h-8 w-8 place-items-center rounded-lg bg-accent/10 text-accent">
-          <ListTodo className="h-4 w-4" />
-        </div>
+        <MomentumRing value={done.length} max={totalCount} size={40} showCount={false} />
         <div className="flex-1 min-w-0">
           <div className="flex items-baseline gap-2">
             <h2 className="text-sm font-semibold">Today</h2>
             <span className="text-[10px] text-fg-subtle">· {weekLabel}</span>
           </div>
-          <div className="mt-1">
-            <ProgressBar value={done.length} max={Math.max(1, totalCount)} size="xs" glow />
-          </div>
+          <p className="mt-0.5 truncate text-[11px] text-fg-muted">{momentumLine}</p>
         </div>
         <div className="flex items-center gap-1.5 text-[10px] text-fg-muted">
           {open.length === 1 && totalCount > 1 ? (

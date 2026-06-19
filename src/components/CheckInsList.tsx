@@ -68,7 +68,7 @@ export function CheckInsList() {
               className={cn(
                 'mt-3 inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold',
                 streakAtRisk
-                  ? 'border-amber-500/40 bg-amber-500/[0.1] text-amber-600 dark:text-amber-400'
+                  ? 'border-sun-1/40 bg-sun-1/10 text-sun-1'
                   : 'border-accent/25 bg-accent/[0.08] text-accent'
               )}
             >
@@ -80,7 +80,7 @@ export function CheckInsList() {
                 <Flame className="h-3 w-3" />
               </motion.span>
               {streak}-week streak
-              {streakAtRisk && <span className="font-medium opacity-80">· keep it alive</span>}
+              {streakAtRisk && <span className="font-medium opacity-80">· keep it glowing</span>}
             </motion.div>
           )}
         </div>
